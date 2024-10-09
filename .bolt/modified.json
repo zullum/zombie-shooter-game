@@ -1,0 +1,1 @@
+[["/home/project/app/page.tsx","import dynamic from 'next/dynamic';\n\nconst GameComponent = dynamic(() => import('../components/Game'), { ssr: false });\n\nexport default function Home() {\n  return (\n    <main>\n      <h1>Zombie Shooter Game</h1>\n      <GameComponent />\n    </main>\n  );\n}"]]
