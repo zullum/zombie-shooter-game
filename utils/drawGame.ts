@@ -1,4 +1,57 @@
-import { GameState, PLAYER_SPACING } from './gameState'; // Import PLAYER_SPACING
+import { GameState, Player, Zombie } from './gameState';
+
+const TOTAL_PLAYER_FRAMES = 15;
+const TOTAL_ZOMBIE_FRAMES = 8; // Adjust this based on the actual number of zombie frames
+const playerImages: HTMLImageElement[] = [];
+const zombieImages: HTMLImageElement[] = [];
+
+// Load all player images
+for (let i = 1; i <= TOTAL_PLAYER_FRAMES; i++) {
+  const img = new Image();
+  img.src = `/player/player_${i.toString().padStart(3, '0')}.png`;
+  playerImages.push(img);
+}
+
+// Load all zombie images
+for (let i = 1; i <= TOTAL_ZOMBIE_FRAMES; i++) {
+  const img = new Image();
+  img.src = `/zombie/zombie_${i.toString().padStart(3, '0')}.png`;
+  zombieImages.push(img);
+}
+
+// Add flags to track if images are loaded
+let playerImagesLoaded = false;
+let zombieImagesLoaded = false;
+
+// Load player images
+Promise.all(playerImages.map(img => new Promise(resolve => {
+  img.onload = () => {
+    console.log(`Player image loaded: ${img.src}, dimensions: ${img.width}x${img.height}`);
+    resolve(null);
+  };
+  img.onerror = () => {
+    console.error(`Failed to load player image: ${img.src}`);
+    resolve(null);
+  };
+}))).then(() => {
+  playerImagesLoaded = true;
+  console.log('All player images loaded');
+});
+
+// Load zombie images
+Promise.all(zombieImages.map(img => new Promise(resolve => {
+  img.onload = () => {
+    console.log(`Zombie image loaded: ${img.src}, dimensions: ${img.width}x${img.height}`);
+    resolve(null);
+  };
+  img.onerror = () => {
+    console.error(`Failed to load zombie image: ${img.src}`);
+    resolve(null);
+  };
+}))).then(() => {
+  zombieImagesLoaded = true;
+  console.log('All zombie images loaded');
+});
 
 export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
   // Clear the canvas
@@ -10,15 +63,13 @@ export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
   }
 
   // Draw players in formation
-  ctx.fillStyle = 'blue';
-  state.playerFormation.forEach(player => {
-    ctx.fillRect(player.x, player.y, player.width, player.height);
+  state.playerFormation.forEach((player, index) => {
+    drawPlayer(ctx, player, index);
   });
 
   // Draw zombies
-  ctx.fillStyle = 'green';
-  state.zombies.forEach(zombie => {
-    ctx.fillRect(zombie.x, zombie.y, zombie.width, zombie.height);
+  state.zombies.forEach((zombie, index) => {
+    drawZombie(ctx, zombie, index);
   });
 
   // Draw bullets
@@ -34,7 +85,7 @@ export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
   ctx.fillText(`Score: ${state.score}`, ctx.canvas.width - 10, 20);
 
   // Draw player count below the score
-  ctx.fillText(`Players: ${state.playerCount}`, ctx.canvas.width - 10, 40); // Added line for player count
+  ctx.fillText(`Players: ${state.playerCount}`, ctx.canvas.width - 10, 40);
 
   // Draw wave and health
   ctx.textAlign = 'left';
@@ -65,3 +116,90 @@ export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
     ctx.fillText(`Final Score: ${state.score}`, ctx.canvas.width / 2, ctx.canvas.height / 2 + 30);
   }
 };
+
+function drawPlayer(ctx: CanvasRenderingContext2D, player: Player, index: number) {
+  if (playerImagesLoaded) {
+    const currentFrame = Math.floor(player.currentFrame) % TOTAL_PLAYER_FRAMES;
+    const image = playerImages[currentFrame];
+    if (image && image.complete && image.naturalWidth !== 0) {
+      const scale = Math.max(player.width / image.width, player.height / image.height);
+      const frameWidth = image.width * scale;
+      const frameHeight = image.height * scale;
+      
+      ctx.drawImage(
+        image,
+        player.x + player.width / 2 - frameWidth / 2,
+        player.y + player.height - frameHeight,
+        frameWidth,
+        frameHeight
+      );
+
+      console.log(`Player ${index} drawn:`, {
+        currentFrame,
+        animationState: player.animationState,
+        x: player.x,
+        y: player.y,
+        playerWidth: player.width,
+        playerHeight: player.height,
+        frameWidth,
+        frameHeight,
+        imageWidth: image.width,
+        imageHeight: image.height
+      });
+    } else {
+      console.error(`Player image not loaded for frame: ${currentFrame}`);
+      fallbackDrawPlayer(ctx, player);
+    }
+  } else {
+    console.warn('Player images not loaded yet');
+    fallbackDrawPlayer(ctx, player);
+  }
+}
+
+function drawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie, index: number) {
+  if (zombieImagesLoaded) {
+    const currentFrame = Math.floor(zombie.currentFrame) % TOTAL_ZOMBIE_FRAMES;
+    const image = zombieImages[currentFrame];
+    if (image && image.complete && image.naturalWidth !== 0) {
+      const scale = Math.max(zombie.width / image.width, zombie.height / image.height);
+      const frameWidth = image.width * scale;
+      const frameHeight = image.height * scale;
+      
+      ctx.drawImage(
+        image,
+        zombie.x + zombie.width / 2 - frameWidth / 2,
+        zombie.y + zombie.height - frameHeight,
+        frameWidth,
+        frameHeight
+      );
+
+      console.log(`Zombie ${index} drawn:`, {
+        currentFrame,
+        x: zombie.x,
+        y: zombie.y,
+        zombieWidth: zombie.width,
+        zombieHeight: zombie.height,
+        frameWidth,
+        frameHeight,
+        imageWidth: image.width,
+        imageHeight: image.height
+      });
+    } else {
+      console.error(`Zombie image not loaded for frame: ${currentFrame}`);
+      fallbackDrawZombie(ctx, zombie);
+    }
+  } else {
+    console.warn('Zombie images not loaded yet');
+    fallbackDrawZombie(ctx, zombie);
+  }
+}
+
+function fallbackDrawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie) {
+  ctx.fillStyle = 'rgba(0, 255, 0, 0.1)'; // Very transparent green
+  ctx.fillRect(zombie.x, zombie.y, zombie.width, zombie.height);
+}
+
+function fallbackDrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {
+  ctx.fillStyle = 'rgba(0, 0, 255, 0.1)'; // Very transparent blue
+  ctx.fillRect(player.x, player.y, player.width, player.height);
+}

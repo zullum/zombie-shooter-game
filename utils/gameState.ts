@@ -8,8 +8,13 @@ export interface Player {
   speed: number; // Player speed
   movingLeft: boolean;
   movingRight: boolean;
+  movingUp: boolean;
+  movingDown: boolean;
   lastShot: number;
   health: number;
+  currentFrame: number;
+  animationState: 'idle' | 'running' | 'shooting';
+  lastAnimationUpdate: number;
 }
 
 export interface Zombie {
@@ -18,6 +23,8 @@ export interface Zombie {
   width: number;
   height: number;
   speed: number;
+  currentFrame: number;
+  lastAnimationUpdate: number;
 }
 
 export interface Bullet {
@@ -26,6 +33,7 @@ export interface Bullet {
   width: number;
   height: number;
   speed: number;
+  direction: { x: number; y: number };
 }
 
 export interface MathBlock {
@@ -64,13 +72,18 @@ export const initialGameState: GameState = {
   player: {
     x: 180,
     y: 580,
-    width: 30,
-    height: 30,
+    width: 60,  // Adjust if needed
+    height: 60, // Adjust if needed
     speed: 10,
     movingLeft: false,
     movingRight: false,
+    movingUp: false,
+    movingDown: false,
     lastShot: 0,
     health: 100,
+    currentFrame: 0,
+    animationState: 'idle',
+    lastAnimationUpdate: 0,
   },
   zombies: [],
   bullets: [],
@@ -88,3 +101,7 @@ export const initialGameState: GameState = {
 };
 
 const PADDING = 0.2; // 20% padding
+
+
+
+

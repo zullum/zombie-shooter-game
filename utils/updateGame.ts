@@ -24,6 +24,27 @@ const FORMATION_ROWS = 3;
 
 const MAX_FORMATION_WIDTH = 10;
 
+const TOTAL_ZOMBIE_FRAMES = 8; // Adjust this based on the actual number of zombie frames
+const ZOMBIE_ANIMATION_FRAME_DURATION = 100; // milliseconds per frame (adjust for desired speed)
+
+const ZOMBIE_RADIUS = 7.5; // Half of the zombie width/height
+const ZOMBIE_REPULSION_FORCE = 0.2; // Adjust this value to control how strongly zombies repel each other
+
+const PLAYER_SPEED = 5; // Reduced from 10 to slow down left/right movement
+const BULLET_SPEED = 10;
+const CLICK_TIMEOUT = 5000; // 5 seconds timeout for click direction
+
+// Add these new interfaces to the top of the file
+interface Vector2D {
+  x: number;
+  y: number;
+}
+
+interface GameStateWithClick extends GameState {
+  lastClickPosition: Vector2D | null;
+  lastClickTime: number;
+}
+
 const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: number): Player[] => {
   const formation: Player[] = [];
   const cols = Math.min(Math.ceil(playerCount / FORMATION_ROWS), MAX_FORMATION_WIDTH);
@@ -31,7 +52,7 @@ const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: num
   const formationWidth = (cols - 1) * (PLAYER_WIDTH + PLAYER_GAP) + PLAYER_WIDTH;
   const formationHeight = (rows - 1) * (PLAYER_HEIGHT + PLAYER_GAP) + PLAYER_HEIGHT;
   const startX = Math.max(0, Math.min(baseX, CANVAS_WIDTH - formationWidth));
-  const startY = baseY - formationHeight + PLAYER_HEIGHT;
+  const startY = Math.min(baseY, CANVAS_HEIGHT - formationHeight);
 
   for (let i = 0; i < playerCount; i++) {
     const col = i % cols;
@@ -44,57 +65,91 @@ const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: num
       y,
       width: PLAYER_WIDTH,
       height: PLAYER_HEIGHT,
-      speed: 10,
+      speed: PLAYER_SPEED,
       movingLeft: false,
       movingRight: false,
+      movingUp: false,
+      movingDown: false,
       lastShot: 0,
       health: 100,
+      currentFrame: 0,
+      animationState: 'idle',
+      lastAnimationUpdate: 0,
     });
   }
 
   return formation;
 };
 
+const TOTAL_FRAMES = 15;
+const ANIMATION_FRAME_DURATION = 50; // milliseconds per frame (adjust for desired speed)
+
 export const updateGame = (state: GameState): GameState => {
   if (!state.gameStarted || state.gameOver) return state;
 
-  const newState = { ...state };
+  const newState = { ...state } as GameStateWithClick;
   const currentTime = Date.now();
 
   // Calculate formation dimensions
   const cols = Math.min(Math.ceil(newState.playerCount / FORMATION_ROWS), MAX_FORMATION_WIDTH);
   const formationWidth = (cols - 1) * (PLAYER_WIDTH + PLAYER_GAP) + PLAYER_WIDTH;
 
-  // Update main player position
+  // Update main player position with reduced speed
   let newPlayerX = newState.player.x;
+  let newPlayerY = newState.player.y;
   if (state.player.movingLeft) {
-    newPlayerX = Math.max(0, newPlayerX - state.player.speed);
+    newPlayerX = Math.max(0, newPlayerX - PLAYER_SPEED);
   }
   if (state.player.movingRight) {
-    newPlayerX = Math.min(CANVAS_WIDTH - formationWidth, newPlayerX + state.player.speed);
+    newPlayerX = Math.min(CANVAS_WIDTH - formationWidth, newPlayerX + PLAYER_SPEED);
+  }
+  if (state.player.movingUp) {
+    newPlayerY = Math.max(0, newPlayerY - PLAYER_SPEED);
+  }
+  if (state.player.movingDown) {
+    newPlayerY = Math.min(CANVAS_HEIGHT - PLAYER_HEIGHT, newPlayerY + PLAYER_SPEED);
   }
 
-  // Calculate player formation
-  const playerFormation = calculatePlayerFormation(newState.playerCount, newPlayerX, CANVAS_HEIGHT - PLAYER_HEIGHT - 10);
+  // Calculate player formation based on the new position
+  const playerFormation = calculatePlayerFormation(newState.playerCount, newPlayerX, newPlayerY);
 
-  // Update main player position
+  // Update main player and formation
   newState.player = {
     ...playerFormation[0],
     movingLeft: state.player.movingLeft,
     movingRight: state.player.movingRight,
+    movingUp: state.player.movingUp,
+    movingDown: state.player.movingDown,
     lastShot: state.player.lastShot,
-    health: state.player.health
+    health: state.player.health,
+    currentFrame: state.player.currentFrame,
+    animationState: state.player.animationState,
+    lastAnimationUpdate: state.player.lastAnimationUpdate,
   };
+  newState.playerFormation = playerFormation;
 
   // Automatic shooting for each player
   if (currentTime - newState.player.lastShot > SHOOT_COOLDOWN) {
-    playerFormation.forEach(player => {
+    let shootingDirection: Vector2D = { x: 0, y: -1 }; // Default direction (straight up)
+
+    if (newState.lastClickPosition && currentTime - newState.lastClickTime < CLICK_TIMEOUT) {
+      const dx = newState.lastClickPosition.x - newState.player.x;
+      const dy = newState.lastClickPosition.y - newState.player.y;
+      const magnitude = Math.sqrt(dx * dx + dy * dy);
+      shootingDirection = {
+        x: dx / magnitude,
+        y: dy / magnitude
+      };
+    }
+
+    newState.playerFormation.forEach(player => {
       newState.bullets.push({
         x: player.x + player.width / 2 - 2.5,
         y: player.y,
         width: 5,
         height: 10,
-        speed: 10,
+        speed: BULLET_SPEED,
+        direction: shootingDirection
       });
     });
     newState.player.lastShot = currentTime;
@@ -102,8 +157,10 @@ export const updateGame = (state: GameState): GameState => {
 
   // Update bullet positions
   newState.bullets = newState.bullets.filter(bullet => {
-    bullet.y -= bullet.speed;
-    return bullet.y + bullet.height > 0;
+    bullet.x += bullet.direction.x * bullet.speed;
+    bullet.y += bullet.direction.y * bullet.speed;
+    return bullet.y + bullet.height > 0 && bullet.y < CANVAS_HEIGHT &&
+           bullet.x + bullet.width > 0 && bullet.x < CANVAS_WIDTH;
   });
 
   // Spawn zombies in waves
@@ -118,6 +175,8 @@ export const updateGame = (state: GameState): GameState => {
         width: 15, // Reduced from 30
         height: 15, // Reduced from 30
         speed: 1 + Math.floor(newState.wave / 5) * 0.2,
+        currentFrame: 0,
+        lastAnimationUpdate: 0,
       });
     }
 
@@ -125,19 +184,53 @@ export const updateGame = (state: GameState): GameState => {
     newState.wave++;
   }
 
-  // Update zombie positions and check for collisions
-  newState.zombies = newState.zombies.filter(zombie => {
-    zombie.y += zombie.speed;
+  // Update zombie positions, check for collisions, and update animations
+  newState.zombies = newState.zombies.map(zombie => {
+    const oldX = zombie.x;
+    const oldY = zombie.y;
 
-    // Move zombies towards the player
-    if (zombie.x < newState.player.x) {
-      zombie.x += 0.5; // Move right
-    } else {
-      zombie.x -= 0.5; // Move left
+    // Move towards the player
+    const dx = newState.player.x - zombie.x;
+    const dy = newState.player.y - zombie.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 0) {
+      zombie.x += (dx / distance) * zombie.speed;
+      zombie.y += (dy / distance) * zombie.speed;
     }
 
+    // Apply repulsion force from other zombies
+    newState.zombies.forEach(otherZombie => {
+      if (zombie !== otherZombie) {
+        const repulsionDx = zombie.x - otherZombie.x;
+        const repulsionDy = zombie.y - otherZombie.y;
+        const repulsionDistance = Math.sqrt(repulsionDx * repulsionDx + repulsionDy * repulsionDy);
+
+        if (repulsionDistance < ZOMBIE_RADIUS * 2) {
+          const repulsionForce = (ZOMBIE_RADIUS * 2 - repulsionDistance) * ZOMBIE_REPULSION_FORCE;
+          zombie.x += (repulsionDx / repulsionDistance) * repulsionForce;
+          zombie.y += (repulsionDy / repulsionDistance) * repulsionForce;
+        }
+      }
+    });
+
+    // Keep zombies within canvas boundaries
+    zombie.x = Math.max(ZOMBIE_RADIUS, Math.min(CANVAS_WIDTH - ZOMBIE_RADIUS, zombie.x));
+    zombie.y = Math.max(ZOMBIE_RADIUS, Math.min(CANVAS_HEIGHT - ZOMBIE_RADIUS, zombie.y));
+
+    // Update zombie animation
+    const elapsedTime = currentTime - zombie.lastAnimationUpdate;
+    const frameProgress = elapsedTime / ZOMBIE_ANIMATION_FRAME_DURATION;
+    zombie.currentFrame = (zombie.currentFrame + frameProgress) % TOTAL_ZOMBIE_FRAMES;
+    zombie.lastAnimationUpdate = currentTime;
+
+    return zombie;
+  });
+
+  // Check for collisions between zombies and players
+  newState.zombies = newState.zombies.filter(zombie => {
     let collision = false;
-    playerFormation.forEach(player => {
+    newState.playerFormation.forEach(player => {
       if (checkCollision(zombie, player)) {
         collision = true;
       }
@@ -146,7 +239,7 @@ export const updateGame = (state: GameState): GameState => {
       newState.playerCount = Math.max(1, newState.playerCount - 1);
       return false; // Remove the zombie that hit a player
     }
-    return zombie.y < CANVAS_HEIGHT;
+    return true;
   });
 
   // Check collisions between bullets and zombies
@@ -201,7 +294,7 @@ export const updateGame = (state: GameState): GameState => {
       block.y += 1; // Move down
 
       // Check for collision with any player in the formation
-      for (let player of playerFormation) {
+      for (let player of newState.playerFormation) {
         if (checkCollision(block, player)) {
           collision = true;
           // Apply math operation
@@ -237,6 +330,29 @@ export const updateGame = (state: GameState): GameState => {
 
   // Recalculate player formation after potential player count change
   newState.playerFormation = calculatePlayerFormation(newState.playerCount, newState.player.x, CANVAS_HEIGHT - PLAYER_HEIGHT - 10);
+
+  // Update player animation
+  const elapsedTime = currentTime - newState.player.lastAnimationUpdate;
+  const frameProgress = elapsedTime / ANIMATION_FRAME_DURATION;
+  newState.player.currentFrame = (newState.player.currentFrame + frameProgress) % TOTAL_FRAMES;
+  newState.player.lastAnimationUpdate = currentTime;
+
+  // Determine player animation state
+  if (newState.player.movingLeft || newState.player.movingRight || newState.player.movingUp || newState.player.movingDown) {
+    newState.player.animationState = 'running';
+  } else if (currentTime - newState.player.lastShot < SHOOT_COOLDOWN) {
+    newState.player.animationState = 'shooting';
+  } else {
+    newState.player.animationState = 'idle';
+  }
+
+  // Update animation state and frame for all players in formation
+  newState.playerFormation = newState.playerFormation.map(player => ({
+    ...player,
+    currentFrame: newState.player.currentFrame,
+    animationState: newState.player.animationState,
+    lastAnimationUpdate: newState.player.lastAnimationUpdate
+  }));
 
   return newState;
 };
@@ -274,4 +390,12 @@ const generateMathPuzzle = (): MathPuzzle => {
     correctAnswer,
     userAnswer: null,
   };
+};
+
+// Add this new function to handle click events
+export const handleCanvasClick = (state: GameState, clickX: number, clickY: number): GameState => {
+  const newState = { ...state } as GameStateWithClick;
+  newState.lastClickPosition = { x: clickX, y: clickY };
+  newState.lastClickTime = Date.now();
+  return newState;
 };

@@ -2,9 +2,15 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GameState, initialGameState } from '../utils/gameState';
-import { updateGame } from '../utils/updateGame';
+import { updateGame, handleCanvasClick as updateCanvasClick } from '../utils/updateGame';
 import { drawGame } from '../utils/drawGame';
 import { useGameLoop } from '../hooks/useGameLoop';
+
+const playerImages = {
+  idle: '/player/idle.png',
+  running: '/player/running.png',
+  shooting: '/player/shooting.png',
+};
 
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -28,43 +34,81 @@ const Game: React.FC = () => {
   };
 
   const updateGameState = useCallback(() => {
-    if (gameState.gameStarted && !gameState.gameOver) {
+    if (gameState?.gameStarted && !gameState?.gameOver) {
       setGameState(prevState => {
         const updatedState = updateGame(prevState);
         console.log('Game state updated:', updatedState.gameStarted, updatedState.gameOver);
         return updatedState;
       });
     }
-  }, [gameState.gameStarted, gameState.gameOver]);
+  }, [gameState?.gameStarted, gameState?.gameOver]);
 
   useGameLoop(updateGameState);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        setGameState(prev => ({ 
-          ...prev, 
-          player: { ...prev.player, movingLeft: true } 
-        }));
-      } else if (e.key === 'ArrowRight') {
-        setGameState(prev => ({ 
-          ...prev, 
-          player: { ...prev.player, movingRight: true } 
-        }));
+      switch (e.key.toLowerCase()) {
+        case 'arrowleft':
+        case 'a':
+          setGameState(prev => ({ 
+            ...prev, 
+            player: { ...prev.player, movingLeft: true } 
+          }));
+          break;
+        case 'arrowright':
+        case 'd':
+          setGameState(prev => ({ 
+            ...prev, 
+            player: { ...prev.player, movingRight: true } 
+          }));
+          break;
+        case 'arrowup':
+        case 'w':
+          setGameState(prev => ({ 
+            ...prev, 
+            player: { ...prev.player, movingUp: true } 
+          }));
+          break;
+        case 'arrowdown':
+        case 's':
+          setGameState(prev => ({ 
+            ...prev, 
+            player: { ...prev.player, movingDown: true } 
+          }));
+          break;
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        setGameState(prev => ({ 
-          ...prev, 
-          player: { ...prev.player, movingLeft: false } 
-        }));
-      } else if (e.key === 'ArrowRight') {
-        setGameState(prev => ({ 
-          ...prev, 
-          player: { ...prev.player, movingRight: false } 
-        }));
+      switch (e.key.toLowerCase()) {
+        case 'arrowleft':
+        case 'a':
+          setGameState(prev => ({ 
+            ...prev, 
+            player: { ...prev.player, movingLeft: false } 
+          }));
+          break;
+        case 'arrowright':
+        case 'd':
+          setGameState(prev => ({ 
+            ...prev, 
+            player: { ...prev.player, movingRight: false } 
+          }));
+          break;
+        case 'arrowup':
+        case 'w':
+          setGameState(prev => ({ 
+            ...prev, 
+            player: { ...prev.player, movingUp: false } 
+          }));
+          break;
+        case 'arrowdown':
+        case 's':
+          setGameState(prev => ({ 
+            ...prev, 
+            player: { ...prev.player, movingDown: false } 
+          }));
+          break;
       }
     };
 
@@ -78,6 +122,14 @@ const Game: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Preload images
+    Object.values(playerImages).forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, []);
+
+  useEffect(() => {
     console.log('Drawing game', gameState);
     const canvas = canvasRef.current;
     if (canvas) {
@@ -88,6 +140,16 @@ const Game: React.FC = () => {
     }
   }, [gameState]);
 
+  const handleCanvasClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      setGameState(prevState => updateCanvasClick(prevState, x, y));
+    }
+  }, []);
+
   return (
     <div className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden">
       <div className="relative w-[360px] h-[640px]">
@@ -96,6 +158,7 @@ const Game: React.FC = () => {
           width={360}
           height={640}
           className="border border-white"
+          onClick={handleCanvasClick}
         />
         {!gameState.gameStarted && (
           <button
