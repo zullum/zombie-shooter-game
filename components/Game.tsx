@@ -12,122 +12,137 @@ const playerImages = {
   shooting: '/player/shooting.png',
 };
 
+const AUDIO_INIT_TIMEOUT = 10000; // Increased to 10 seconds
+
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<GameState>({
     ...initialGameState,
-    setGameState: null as any, // We'll set this properly in the useEffect
+    setGameState: null as any,
   });
+  const [audioInitialized, setAudioInitialized] = useState(false);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [bulletSoundBuffer, setBulletSoundBuffer] = useState<AudioBuffer | null>(null);
+  const [audioInitError, setAudioInitError] = useState<string | null>(null);
 
-  // Update the gameState with setGameState after initialization
   useEffect(() => {
-    setGameState(prevState => ({
-      ...prevState,
-      setGameState: (updater: React.SetStateAction<GameState>) => {
-        setGameState(current => {
-          const nextState = typeof updater === 'function' ? updater(current) : updater;
-          return { ...nextState, setGameState: current.setGameState };
-        });
-      },
-    }));
+    const initAudio = async () => {
+      try {
+        console.log('Starting audio initialization...');
+        const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+        setAudioContext(context);
+        console.log('AudioContext created:', context);
+
+        const audioFilePath = '/audio/deserteagle.mp3';
+        console.log('Attempting to fetch audio file from:', audioFilePath);
+        const response = await fetch(audioFilePath);
+        console.log('Fetch response:', response);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}, url: ${response.url}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        console.log('ArrayBuffer loaded, size:', arrayBuffer.byteLength);
+
+        const soundBuffer = await context.decodeAudioData(arrayBuffer);
+        console.log('Audio buffer decoded:', soundBuffer);
+
+        setBulletSoundBuffer(soundBuffer);
+        setAudioInitialized(true);
+        console.log('Audio initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize audio:', error);
+        setAudioInitError(`Audio initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+
+    const audioInitTimeoutId = setTimeout(() => {
+      if (!audioInitialized) {
+        setAudioInitError('Audio initialization timed out. The game will start without sound.');
+      }
+    }, AUDIO_INIT_TIMEOUT);
+
+    initAudio();
+
+    return () => clearTimeout(audioInitTimeoutId);
   }, []);
 
-  const startGame = () => {
+  const startGame = useCallback(() => {
     console.log('Starting game');
-    initializeAudio().catch(console.error); // Initialize audio when starting the game
-    setGameState(prevState => {
-      const newState = {
-        ...initialGameState,
-        gameStarted: true,
-        setGameState: prevState.setGameState,
-      };
-      console.log('Initial game state:', newState);
-      return newState;
-    });
-  };
-
-  const restartGame = () => {
     setGameState(prevState => ({
       ...initialGameState,
       gameStarted: true,
       setGameState: prevState.setGameState,
     }));
-    console.log('Game restarted'); // Debugging log
-  };
+  }, []);
+
+  const restartGame = useCallback(() => {
+    setGameState(prevState => ({
+      ...initialGameState,
+      gameStarted: true,
+      setGameState: prevState.setGameState,
+    }));
+    console.log('Game restarted');
+  }, []);
 
   const updateGameState = useCallback(() => {
     if (gameState.gameStarted && !gameState.gameOver) {
-      setGameState(prevState => updateGame(prevState));
+      setGameState(prevState => updateGame(prevState, audioContext, bulletSoundBuffer));
     }
-  }, [gameState.gameStarted, gameState.gameOver]);
+  }, [gameState.gameStarted, gameState.gameOver, audioContext, bulletSoundBuffer]);
 
   useGameLoop(updateGameState);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key.toLowerCase()) {
-        case 'arrowleft':
-        case 'a':
-          setGameState(prev => ({ 
-            ...prev, 
-            player: { ...prev.player, movingLeft: true } 
-          }));
-          break;
-        case 'arrowright':
-        case 'd':
-          setGameState(prev => ({ 
-            ...prev, 
-            player: { ...prev.player, movingRight: true } 
-          }));
-          break;
-        case 'arrowup':
-        case 'w':
-          setGameState(prev => ({ 
-            ...prev, 
-            player: { ...prev.player, movingUp: true } 
-          }));
-          break;
-        case 'arrowdown':
-        case 's':
-          setGameState(prev => ({ 
-            ...prev, 
-            player: { ...prev.player, movingDown: true } 
-          }));
-          break;
-      }
+      setGameState(prev => {
+        const newPlayer = { ...prev.player };
+        switch (e.key.toLowerCase()) {
+          case 'arrowleft':
+          case 'a':
+            newPlayer.movingLeft = true;
+            break;
+          case 'arrowright':
+          case 'd':
+            newPlayer.movingRight = true;
+            break;
+          case 'arrowup':
+          case 'w':
+            newPlayer.movingUp = true;
+            break;
+          case 'arrowdown':
+          case 's':
+            newPlayer.movingDown = true;
+            break;
+        }
+        return { ...prev, player: newPlayer };
+      });
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      switch (e.key.toLowerCase()) {
-        case 'arrowleft':
-        case 'a':
-          setGameState(prev => ({ 
-            ...prev, 
-            player: { ...prev.player, movingLeft: false } 
-          }));
-          break;
-        case 'arrowright':
-        case 'd':
-          setGameState(prev => ({ 
-            ...prev, 
-            player: { ...prev.player, movingRight: false } 
-          }));
-          break;
-        case 'arrowup':
-        case 'w':
-          setGameState(prev => ({ 
-            ...prev, 
-            player: { ...prev.player, movingUp: false } 
-          }));
-          break;
-        case 'arrowdown':
-        case 's':
-          setGameState(prev => ({ 
-            ...prev, 
-            player: { ...prev.player, movingDown: false } 
-          }));
-          break;
-      }
+      setGameState(prev => {
+        const newPlayer = { ...prev.player };
+        switch (e.key.toLowerCase()) {
+          case 'arrowleft':
+          case 'a':
+            newPlayer.movingLeft = false;
+            break;
+          case 'arrowright':
+          case 'd':
+            newPlayer.movingRight = false;
+            break;
+          case 'arrowup':
+          case 'w':
+            newPlayer.movingUp = false;
+            break;
+          case 'arrowdown':
+          case 's':
+            newPlayer.movingDown = false;
+            break;
+        }
+        return { ...prev, player: newPlayer };
+      });
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -168,9 +183,13 @@ const Game: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    initializeAudio().catch(console.error);
-  }, []);
+  const initAudioContext = useCallback(() => {
+    if (audioContext) {
+      audioContext.resume().then(() => {
+        console.log('AudioContext resumed successfully');
+      });
+    }
+  }, [audioContext]);
 
   return (
     <div className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden">
@@ -180,15 +199,26 @@ const Game: React.FC = () => {
           width={360}
           height={640}
           className="border border-white"
-          onClick={handleCanvasClick}
+          onClick={(e) => {
+            handleCanvasClick(e);
+            initAudioContext();
+          }}
         />
         {!gameState.gameStarted && (
-          <button
-            onClick={startGame}
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Start Game
-          </button>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+            <button
+              onClick={startGame}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mb-2"
+            >
+              Start Game
+            </button>
+            {!audioInitialized && !audioInitError && (
+              <p className="text-white">Initializing audio...</p>
+            )}
+            {audioInitError && (
+              <p className="text-yellow-300 text-sm">{audioInitError}</p>
+            )}
+          </div>
         )}
         {gameState.gameOver && (
           <button

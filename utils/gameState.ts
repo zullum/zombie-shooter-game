@@ -66,6 +66,8 @@ export interface GameState {
   lastMathBlockSpawn: number;
   playerFormation: Player[];
   setGameState?: React.Dispatch<React.SetStateAction<GameState>>;
+  lastClickPosition?: { x: number; y: number };
+  lastClickTime?: number;
 }
 
 export interface MathPuzzle {

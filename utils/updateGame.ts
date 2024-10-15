@@ -1,4 +1,11 @@
 import { GameState, Zombie, Bullet, MathPuzzle, MathBlock, Player } from './gameState';
+import { Howl, Howler } from 'howler';
+
+declare module 'howler' {
+  interface Howl {
+    playing(): boolean;
+  }
+}
 
 const CANVAS_WIDTH = 360;
 const CANVAS_HEIGHT = 640;
@@ -65,26 +72,31 @@ let bulletSoundBuffer: AudioBuffer | null = null;
 const initializeAudio = async () => {
   try {
     audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const response = await fetch('/audio/deserteagle.mp3');
+    console.log('Audio context created:', audioContext);
+    const response = await fetch('/audio/bullet_impact.mp3');
+    console.log('Fetch response:', response);
     const arrayBuffer = await response.arrayBuffer();
+    console.log('Array buffer loaded, size:', arrayBuffer.byteLength);
     bulletSoundBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    console.log('Audio buffer decoded:', bulletSoundBuffer);
     console.log('Audio initialized successfully');
   } catch (error) {
     console.error('Failed to initialize audio:', error);
   }
 };
 
-const playBulletSound = () => {
+const playBulletSound = (audioContext: AudioContext | null, bulletSoundBuffer: AudioBuffer | null) => {
   if (audioContext && bulletSoundBuffer) {
     const source = audioContext.createBufferSource();
     source.buffer = bulletSoundBuffer;
     const gainNode = audioContext.createGain();
-    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // Reduced volume
+    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
     source.connect(gainNode);
     gainNode.connect(audioContext.destination);
     source.start();
+    console.log('Bullet sound played');
   } else {
-    console.warn('Audio not initialized');
+    console.warn('Audio not initialized, context:', audioContext, 'buffer:', bulletSoundBuffer);
   }
 };
 
@@ -94,8 +106,68 @@ const SPEED_INCREMENT_PER_WAVE = 0.05; // Speed increase per wave
 const ANIMATION_FRAME_DURATION = 100; // milliseconds per frame
 const TOTAL_FRAMES = 15; // Assuming 15 frames for player animation
 
+// Update these constants at the top of the file
+const SHOOT_CHANCE_PER_PLAYER = 0.01; // 1% chance per player to shoot each frame
+const MIN_SHOOT_INTERVAL = 500; // Minimum time between shots for a single player (in milliseconds)
+
+const MAX_SIMULTANEOUS_SOUNDS = 5;
+const SOUND_COOLDOWN = 50; // milliseconds
+const VOLUME_RANGE = 0.3; // Random volume adjustment range
+
+// Add this interface
+interface SoundEffect {
+  sound: Howl;
+  lastPlayedTime: number;
+}
+
+// Add this object to store our sound effects
+const soundEffects: { [key: string]: SoundEffect } = {
+  bulletImpact: {
+    sound: new Howl({
+      src: ['/audio/deserteagle.mp3'], // Updated path
+      volume: 0.5,
+    }),
+    lastPlayedTime: 0,
+  },
+  // Add more sound effects here as needed
+};
+
+// Add this function to play a sound with cooldown and randomization
+const playSoundWithCooldown = (soundName: string) => {
+  const currentTime = Date.now();
+  const sound = soundEffects[soundName];
+
+  if (currentTime - sound.lastPlayedTime > SOUND_COOLDOWN) {
+    const activeSounds = Howler._howls.filter(howl => howl.playing()).length;
+
+    if (activeSounds < MAX_SIMULTANEOUS_SOUNDS) {
+      const randomVolume = sound.sound.volume() + (Math.random() * VOLUME_RANGE - VOLUME_RANGE / 2);
+      const randomRate = 1 + (Math.random() * 0.2 - 0.1); // Random playback rate between 0.9 and 1.1
+
+      sound.sound.volume(Math.max(0, Math.min(1, randomVolume)));
+      sound.sound.rate(randomRate);
+      sound.sound.play();
+      sound.lastPlayedTime = currentTime;
+    }
+  }
+};
+
+// Add these constants at the top of the file
+const MAX_BULLET_SOUNDS_PER_SECOND = 20;
+const BULLET_SOUND_WINDOW = 1000; // 1 second in milliseconds
+
+// Add this to your existing interfaces or create a new one
+interface BulletSoundTracker {
+  lastSounds: number[];
+}
+
+// Add this near the top of your file, outside of any function
+let bulletSoundTracker: BulletSoundTracker = {
+  lastSounds: []
+};
+
 // Remove the 'export' keyword from here
-const updateGame = (state: GameState): GameState => {
+const updateGame = (state: GameState, audioContext: AudioContext | null, bulletSoundBuffer: AudioBuffer | null): GameState => {
   if (!state.gameStarted || state.gameOver) return state;
 
   const newState = { ...state };
@@ -139,63 +211,48 @@ const updateGame = (state: GameState): GameState => {
   };
   newState.playerFormation = playerFormation;
 
-  // Automatic shooting for each player with randomized delay
-  if (currentTime - newState.player.lastShot > SHOOT_COOLDOWN) {
-    let shootingDirection: Vector2D = { x: 0, y: -1 }; // Default direction (straight up)
+  // Updated shooting logic
+  let bulletSoundsThisFrame = 0;
+  newState.playerFormation.forEach((player, index) => {
+    if (currentTime - player.lastShot > MIN_SHOOT_INTERVAL && Math.random() < SHOOT_CHANCE_PER_PLAYER) {
+      let shootingDirection: Vector2D = { x: 0, y: -1 }; // Default direction (straight up)
 
-    if (newState.lastClickPosition && currentTime - newState.lastClickTime < CLICK_TIMEOUT) {
-      const dx = newState.lastClickPosition.x - newState.player.x;
-      const dy = newState.lastClickPosition.y - newState.player.y;
-      const magnitude = Math.sqrt(dx * dx + dy * dy);
-      shootingDirection = {
-        x: dx / magnitude,
-        y: dy / magnitude
+      // Determine shooting direction based on last click or default to upward
+      if (newState.lastClickPosition && currentTime - newState.lastClickTime < CLICK_TIMEOUT) {
+        const dx = newState.lastClickPosition.x - player.x;
+        const dy = newState.lastClickPosition.y - player.y;
+        const magnitude = Math.sqrt(dx * dx + dy * dy);
+        shootingDirection = {
+          x: dx / magnitude,
+          y: dy / magnitude
+        };
+      }
+
+      const newBullet = {
+        x: player.x + player.width / 2,
+        y: player.y,
+        width: 4,
+        height: 8,
+        speed: BULLET_SPEED,
+        direction: shootingDirection,
+        trail: [],
+        creationTime: currentTime,
+        glowIntensity: 1,
+        visible: true,
       };
+
+      newState.bullets.push(newBullet);
+      newState.playerFormation[index] = { ...player, lastShot: currentTime };
+
+      // Play bullet sound for every shot, but limit to MAX_BULLET_SOUNDS_PER_SECOND
+      bulletSoundTracker.lastSounds = bulletSoundTracker.lastSounds.filter(time => currentTime - time < BULLET_SOUND_WINDOW);
+      if (bulletSoundTracker.lastSounds.length < MAX_BULLET_SOUNDS_PER_SECOND && bulletSoundsThisFrame < MAX_BULLET_SOUNDS_PER_SECOND) {
+        playBulletSound(audioContext, bulletSoundBuffer);
+        bulletSoundTracker.lastSounds.push(currentTime);
+        bulletSoundsThisFrame++;
+      }
     }
-
-    const volleyStartTime = currentTime;
-    let soundsPlayed = 0;
-
-    newState.playerFormation.forEach((player, index) => {
-      const randomDelay = Math.random() * VOLLEY_DURATION;
-      
-      setTimeout(() => {
-        newState.setGameState?.(prevState => {
-          const updatedPlayer = prevState.playerFormation[index];
-          if (!updatedPlayer) {
-            console.error(`Player at index ${index} not found in formation`);
-            return prevState;
-          }
-
-          const newBullet = {
-            x: updatedPlayer.x + updatedPlayer.width / 2,
-            y: updatedPlayer.y,
-            width: 4,
-            height: 8,
-            speed: BULLET_SPEED,
-            direction: shootingDirection,
-            trail: [],
-            creationTime: Date.now(),
-            glowIntensity: 1,
-            visible: true,
-          };
-
-          // Play bullet sound
-          if (soundsPlayed < MAX_SOUND_EFFECTS) {
-            playBulletSound();
-            soundsPlayed++;
-          }
-
-          return {
-            ...prevState,
-            bullets: [...prevState.bullets, newBullet]
-          };
-        });
-      }, randomDelay);
-    });
-
-    newState.player.lastShot = volleyStartTime;
-  }
+  });
 
   // Update bullet positions and trails
   newState.bullets = newState.bullets.filter(bullet => {
@@ -310,6 +367,7 @@ const updateGame = (state: GameState): GameState => {
       if (checkCollisionWithZombie(bullet, zombie)) {
         bulletHit = true;
         newState.score += 10;
+        // Remove the sound play from here, as we're now playing it when the bullet is created
         return false; // Remove the zombie that was hit
       }
       return true;
