@@ -6,7 +6,7 @@ const PADDING = 0.05; // 5% padding on each side
 const MATH_BLOCK_GAP = 0.2; // 20% gap between blocks
 const MATH_BLOCK_WIDTH = (CANVAS_WIDTH * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2; // Width of each math block with padding and gap
 const ZOMBIE_SPAWN_INTERVAL = 5000;
-const SHOOT_COOLDOWN = 500;
+const SHOOT_COOLDOWN = 2000; // Increased from 1500 to 2000 milliseconds
 const INITIAL_ZOMBIES_PER_WAVE = 10;
 const ZOMBIES_PER_WAVE_INCREMENT = 5;
 const PUZZLE_INTERVAL = 15000;
@@ -31,8 +31,18 @@ const ZOMBIE_RADIUS = 7.5; // Half of the zombie width/height
 const ZOMBIE_REPULSION_FORCE = 0.2; // Adjust this value to control how strongly zombies repel each other
 
 const PLAYER_SPEED = 5; // Reduced from 10 to slow down left/right movement
-const BULLET_SPEED = 10;
-const CLICK_TIMEOUT = 5000; // 5 seconds timeout for click direction
+const BULLET_SPEED = 18; // Increased from 15 to 18
+const CLICK_TIMEOUT = 1000; // Reduced from 5000 to 1000 milliseconds (1 second)
+const SHOOT_DELAY_MIN = 200; // Increased from 50 to 200 milliseconds
+const SHOOT_DELAY_MAX = 500; // Increased from 300 to 500 milliseconds
+
+const ZOMBIE_MIN_SCALE = 1;
+const ZOMBIE_MAX_SCALE = 3; // Changed from 1.5 to 3
+
+const BULLET_DELAY = 50; // Milliseconds of delay before bullet becomes visible
+const PLAYER_SHOT_DELAY_MIN = 200; // Minimum delay between individual player shots (milliseconds)
+const PLAYER_SHOT_DELAY_MAX = 800; // Maximum delay between individual player shots (milliseconds)
+const VOLLEY_DURATION = 1000; // Duration over which all soldiers will fire (milliseconds)
 
 // Add these new interfaces to the top of the file
 interface Vector2D {
@@ -45,49 +55,50 @@ interface GameStateWithClick extends GameState {
   lastClickTime: number;
 }
 
-const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: number): Player[] => {
-  const formation: Player[] = [];
-  const cols = Math.min(Math.ceil(playerCount / FORMATION_ROWS), MAX_FORMATION_WIDTH);
-  const rows = Math.ceil(playerCount / cols);
-  const formationWidth = (cols - 1) * (PLAYER_WIDTH + PLAYER_GAP) + PLAYER_WIDTH;
-  const formationHeight = (rows - 1) * (PLAYER_HEIGHT + PLAYER_GAP) + PLAYER_HEIGHT;
-  const startX = Math.max(0, Math.min(baseX, CANVAS_WIDTH - formationWidth));
-  const startY = Math.min(baseY, CANVAS_HEIGHT - formationHeight);
+const MAX_SOUND_EFFECTS = 20;
+const SOUND_OVERLAP_THRESHOLD = 50; // milliseconds
 
-  for (let i = 0; i < playerCount; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = startX + col * (PLAYER_WIDTH + PLAYER_GAP);
-    const y = startY + row * (PLAYER_HEIGHT + PLAYER_GAP);
+let audioContext: AudioContext | null = null;
+let bulletSoundBuffer: AudioBuffer | null = null;
 
-    formation.push({
-      x,
-      y,
-      width: PLAYER_WIDTH,
-      height: PLAYER_HEIGHT,
-      speed: PLAYER_SPEED,
-      movingLeft: false,
-      movingRight: false,
-      movingUp: false,
-      movingDown: false,
-      lastShot: 0,
-      health: 100,
-      currentFrame: 0,
-      animationState: 'idle',
-      lastAnimationUpdate: 0,
-    });
+// Remove the export from the function declaration
+const initializeAudio = async () => {
+  try {
+    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const response = await fetch('/audio/deserteagle.mp3');
+    const arrayBuffer = await response.arrayBuffer();
+    bulletSoundBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    console.log('Audio initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize audio:', error);
   }
-
-  return formation;
 };
 
-const TOTAL_FRAMES = 15;
-const ANIMATION_FRAME_DURATION = 50; // milliseconds per frame (adjust for desired speed)
+const playBulletSound = () => {
+  if (audioContext && bulletSoundBuffer) {
+    const source = audioContext.createBufferSource();
+    source.buffer = bulletSoundBuffer;
+    const gainNode = audioContext.createGain();
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime); // Reduced volume
+    source.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    source.start();
+  } else {
+    console.warn('Audio not initialized');
+  }
+};
 
-export const updateGame = (state: GameState): GameState => {
+const BASE_ZOMBIE_SPEED = 0.3; // Base speed for zombies
+const SPEED_INCREMENT_PER_WAVE = 0.05; // Speed increase per wave
+
+const ANIMATION_FRAME_DURATION = 100; // milliseconds per frame
+const TOTAL_FRAMES = 15; // Assuming 15 frames for player animation
+
+// Remove the 'export' keyword from here
+const updateGame = (state: GameState): GameState => {
   if (!state.gameStarted || state.gameOver) return state;
 
-  const newState = { ...state } as GameStateWithClick;
+  const newState = { ...state };
   const currentTime = Date.now();
 
   // Calculate formation dimensions
@@ -128,7 +139,7 @@ export const updateGame = (state: GameState): GameState => {
   };
   newState.playerFormation = playerFormation;
 
-  // Automatic shooting for each player
+  // Automatic shooting for each player with randomized delay
   if (currentTime - newState.player.lastShot > SHOOT_COOLDOWN) {
     let shootingDirection: Vector2D = { x: 0, y: -1 }; // Default direction (straight up)
 
@@ -142,25 +153,69 @@ export const updateGame = (state: GameState): GameState => {
       };
     }
 
-    newState.playerFormation.forEach(player => {
-      newState.bullets.push({
-        x: player.x + player.width / 2 - 2.5,
-        y: player.y,
-        width: 5,
-        height: 10,
-        speed: BULLET_SPEED,
-        direction: shootingDirection
-      });
+    const volleyStartTime = currentTime;
+    let soundsPlayed = 0;
+
+    newState.playerFormation.forEach((player, index) => {
+      const randomDelay = Math.random() * VOLLEY_DURATION;
+      
+      setTimeout(() => {
+        newState.setGameState?.(prevState => {
+          const updatedPlayer = prevState.playerFormation[index];
+          if (!updatedPlayer) {
+            console.error(`Player at index ${index} not found in formation`);
+            return prevState;
+          }
+
+          const newBullet = {
+            x: updatedPlayer.x + updatedPlayer.width / 2,
+            y: updatedPlayer.y,
+            width: 4,
+            height: 8,
+            speed: BULLET_SPEED,
+            direction: shootingDirection,
+            trail: [],
+            creationTime: Date.now(),
+            glowIntensity: 1,
+            visible: true,
+          };
+
+          // Play bullet sound
+          if (soundsPlayed < MAX_SOUND_EFFECTS) {
+            playBulletSound();
+            soundsPlayed++;
+          }
+
+          return {
+            ...prevState,
+            bullets: [...prevState.bullets, newBullet]
+          };
+        });
+      }, randomDelay);
     });
-    newState.player.lastShot = currentTime;
+
+    newState.player.lastShot = volleyStartTime;
   }
 
-  // Update bullet positions
+  // Update bullet positions and trails
   newState.bullets = newState.bullets.filter(bullet => {
+    // Add current position to trail
+    bullet.trail.unshift({ x: bullet.x, y: bullet.y });
+    // Limit trail length
+    if (bullet.trail.length > 10) {
+      bullet.trail.pop();
+    }
+
     bullet.x += bullet.direction.x * bullet.speed;
     bullet.y += bullet.direction.y * bullet.speed;
-    return bullet.y + bullet.height > 0 && bullet.y < CANVAS_HEIGHT &&
-           bullet.x + bullet.width > 0 && bullet.x < CANVAS_WIDTH;
+
+    // Update glow intensity
+    bullet.glowIntensity = Math.max(0, bullet.glowIntensity - 0.02); // Gradually reduce glow
+
+    // Remove bullets that are off-screen or too old
+    return (currentTime - bullet.creationTime < 5000) && // Remove after 5 seconds
+           (bullet.y + bullet.height > 0) && (bullet.y < CANVAS_HEIGHT) &&
+           (bullet.x + bullet.width > 0) && (bullet.x < CANVAS_WIDTH);
   });
 
   // Spawn zombies in waves
@@ -170,13 +225,14 @@ export const updateGame = (state: GameState): GameState => {
 
     for (let i = 0; i < actualZombiesToSpawn; i++) {
       newState.zombies.push({
-        x: Math.random() * (CANVAS_WIDTH - 15), // Adjusted for new zombie width
+        x: Math.random() * (CANVAS_WIDTH - 15),
         y: Math.random() * 100,
-        width: 15, // Reduced from 30
-        height: 15, // Reduced from 30
-        speed: 1 + Math.floor(newState.wave / 5) * 0.2,
+        width: 15,
+        height: 15,
+        speed: BASE_ZOMBIE_SPEED + (newState.wave - 1) * SPEED_INCREMENT_PER_WAVE,
         currentFrame: 0,
         lastAnimationUpdate: 0,
+        scale: ZOMBIE_MIN_SCALE,
       });
     }
 
@@ -199,6 +255,10 @@ export const updateGame = (state: GameState): GameState => {
       zombie.y += (dy / distance) * zombie.speed;
     }
 
+    // Update zombie scale based on y position
+    const progressToPlayer = zombie.y / CANVAS_HEIGHT;
+    zombie.scale = ZOMBIE_MIN_SCALE + (ZOMBIE_MAX_SCALE - ZOMBIE_MIN_SCALE) * progressToPlayer;
+
     // Apply repulsion force from other zombies
     newState.zombies.forEach(otherZombie => {
       if (zombie !== otherZombie) {
@@ -206,8 +266,8 @@ export const updateGame = (state: GameState): GameState => {
         const repulsionDy = zombie.y - otherZombie.y;
         const repulsionDistance = Math.sqrt(repulsionDx * repulsionDx + repulsionDy * repulsionDy);
 
-        if (repulsionDistance < ZOMBIE_RADIUS * 2) {
-          const repulsionForce = (ZOMBIE_RADIUS * 2 - repulsionDistance) * ZOMBIE_REPULSION_FORCE;
+        if (repulsionDistance < ZOMBIE_RADIUS * 2 * zombie.scale) {
+          const repulsionForce = (ZOMBIE_RADIUS * 2 * zombie.scale - repulsionDistance) * ZOMBIE_REPULSION_FORCE;
           zombie.x += (repulsionDx / repulsionDistance) * repulsionForce;
           zombie.y += (repulsionDy / repulsionDistance) * repulsionForce;
         }
@@ -215,8 +275,9 @@ export const updateGame = (state: GameState): GameState => {
     });
 
     // Keep zombies within canvas boundaries
-    zombie.x = Math.max(ZOMBIE_RADIUS, Math.min(CANVAS_WIDTH - ZOMBIE_RADIUS, zombie.x));
-    zombie.y = Math.max(ZOMBIE_RADIUS, Math.min(CANVAS_HEIGHT - ZOMBIE_RADIUS, zombie.y));
+    const scaledRadius = ZOMBIE_RADIUS * zombie.scale;
+    zombie.x = Math.max(scaledRadius, Math.min(CANVAS_WIDTH - scaledRadius, zombie.x));
+    zombie.y = Math.max(scaledRadius, Math.min(CANVAS_HEIGHT - scaledRadius, zombie.y));
 
     // Update zombie animation
     const elapsedTime = currentTime - zombie.lastAnimationUpdate;
@@ -246,7 +307,7 @@ export const updateGame = (state: GameState): GameState => {
   newState.bullets = newState.bullets.filter(bullet => {
     let bulletHit = false;
     newState.zombies = newState.zombies.filter(zombie => {
-      if (checkCollision(bullet, zombie)) {
+      if (checkCollisionWithZombie(bullet, zombie)) {
         bulletHit = true;
         newState.score += 10;
         return false; // Remove the zombie that was hit
@@ -364,6 +425,18 @@ const checkCollision = (rect1: { x: number; y: number; width: number; height: nu
          rect1.y + rect1.height > rect2.y;
 };
 
+const checkCollisionWithZombie = (bullet: Bullet, zombie: Zombie) => {
+  const scaledWidth = zombie.width * zombie.scale;
+  const scaledHeight = zombie.height * zombie.scale;
+  const zombieRect = {
+    x: zombie.x - scaledWidth / 2,
+    y: zombie.y - scaledHeight / 2,
+    width: scaledWidth,
+    height: scaledHeight
+  };
+  return checkCollision(bullet, zombieRect);
+};
+
 const generateMathPuzzle = (): MathPuzzle => {
   const operations = ['+', '-', '*'];
   const operation = operations[Math.floor(Math.random() * operations.length)];
@@ -392,10 +465,58 @@ const generateMathPuzzle = (): MathPuzzle => {
   };
 };
 
-// Add this new function to handle click events
-export const handleCanvasClick = (state: GameState, clickX: number, clickY: number): GameState => {
+// Remove the 'export' keyword from here
+const handleCanvasClick = (state: GameState, clickX: number, clickY: number): GameState => {
   const newState = { ...state } as GameStateWithClick;
   newState.lastClickPosition = { x: clickX, y: clickY };
   newState.lastClickTime = Date.now();
   return newState;
 };
+
+const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: number): Player[] => {
+  const formation: Player[] = [];
+  const actualPlayerCount = Math.max(1, playerCount); // Ensure at least one player
+  let cols, rows;
+
+  if (actualPlayerCount < 3) {
+    cols = actualPlayerCount;
+    rows = 1;
+  } else {
+    cols = Math.min(Math.ceil(actualPlayerCount / FORMATION_ROWS), MAX_FORMATION_WIDTH);
+    rows = Math.ceil(actualPlayerCount / cols);
+  }
+
+  const formationWidth = (cols - 1) * (PLAYER_WIDTH + PLAYER_GAP) + PLAYER_WIDTH;
+  const formationHeight = (rows - 1) * (PLAYER_HEIGHT + PLAYER_GAP) + PLAYER_HEIGHT;
+  const startX = Math.max(0, Math.min(baseX, CANVAS_WIDTH - formationWidth));
+  const startY = Math.min(baseY, CANVAS_HEIGHT - formationHeight);
+
+  for (let i = 0; i < actualPlayerCount; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = startX + col * (PLAYER_WIDTH + PLAYER_GAP);
+    const y = startY + row * (PLAYER_HEIGHT + PLAYER_GAP);
+
+    formation.push({
+      x,
+      y,
+      width: PLAYER_WIDTH,
+      height: PLAYER_HEIGHT,
+      speed: PLAYER_SPEED,
+      movingLeft: false,
+      movingRight: false,
+      movingUp: false,
+      movingDown: false,
+      lastShot: 0,
+      health: 100,
+      currentFrame: 0,
+      animationState: 'idle',
+      lastAnimationUpdate: 0,
+    });
+  }
+
+  return formation;
+};
+
+// Keep only this export at the end of the file
+export { initializeAudio, updateGame, handleCanvasClick };

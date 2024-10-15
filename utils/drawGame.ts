@@ -53,6 +53,9 @@ Promise.all(zombieImages.map(img => new Promise(resolve => {
   console.log('All zombie images loaded');
 });
 
+// Add this at the top of the file
+const bulletSound = new Audio('/audio/deserteagle.mp3');
+
 export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
   // Clear the canvas
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -72,10 +75,41 @@ export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
     drawZombie(ctx, zombie, index);
   });
 
-  // Draw bullets
-  ctx.fillStyle = 'yellow';
+  // Draw bullets with enhanced appearance
   state.bullets.forEach(bullet => {
-    ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+    console.log('Drawing bullet:', bullet); // Add this line
+    if (bullet.visible) {
+      // Draw bullet trail
+      if (bullet.trail.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(bullet.trail[0].x, bullet.trail[0].y);
+        for (let i = 1; i < bullet.trail.length; i++) {
+          ctx.lineTo(bullet.trail[i].x, bullet.trail[i].y);
+        }
+        ctx.strokeStyle = `rgba(255, 255, 0, ${0.1 * bullet.glowIntensity})`; // Adjusted opacity
+        ctx.lineWidth = 2; // Fixed width for trail
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+
+      // Draw bullet
+      ctx.fillStyle = `rgba(255, 255, 100, ${bullet.glowIntensity})`;
+      ctx.beginPath();
+      ctx.arc(bullet.x, bullet.y, bullet.width / 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw bullet glow
+      const glowGradient = ctx.createRadialGradient(
+        bullet.x, bullet.y, 0,
+        bullet.x, bullet.y, bullet.width * 2
+      );
+      glowGradient.addColorStop(0, `rgba(255, 255, 100, ${bullet.glowIntensity * 0.5})`);
+      glowGradient.addColorStop(1, 'rgba(255, 255, 100, 0)');
+      ctx.fillStyle = glowGradient;
+      ctx.beginPath();
+      ctx.arc(bullet.x, bullet.y, bullet.width * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
   });
 
   // Draw score in top right corner
@@ -161,14 +195,14 @@ function drawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie, index: number
     const currentFrame = Math.floor(zombie.currentFrame) % TOTAL_ZOMBIE_FRAMES;
     const image = zombieImages[currentFrame];
     if (image && image.complete && image.naturalWidth !== 0) {
-      const scale = Math.max(zombie.width / image.width, zombie.height / image.height);
+      const scale = Math.max(zombie.width / image.width, zombie.height / image.height) * zombie.scale;
       const frameWidth = image.width * scale;
       const frameHeight = image.height * scale;
       
       ctx.drawImage(
         image,
-        zombie.x + zombie.width / 2 - frameWidth / 2,
-        zombie.y + zombie.height - frameHeight,
+        zombie.x - frameWidth / 2,
+        zombie.y - frameHeight / 2,
         frameWidth,
         frameHeight
       );
@@ -182,7 +216,8 @@ function drawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie, index: number
         frameWidth,
         frameHeight,
         imageWidth: image.width,
-        imageHeight: image.height
+        imageHeight: image.height,
+        scale: zombie.scale
       });
     } else {
       console.error(`Zombie image not loaded for frame: ${currentFrame}`);
@@ -196,7 +231,14 @@ function drawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie, index: number
 
 function fallbackDrawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie) {
   ctx.fillStyle = 'rgba(0, 255, 0, 0.1)'; // Very transparent green
-  ctx.fillRect(zombie.x, zombie.y, zombie.width, zombie.height);
+  const scaledWidth = zombie.width * zombie.scale;
+  const scaledHeight = zombie.height * zombie.scale;
+  ctx.fillRect(
+    zombie.x - scaledWidth / 2,
+    zombie.y - scaledHeight / 2,
+    scaledWidth,
+    scaledHeight
+  );
 }
 
 function fallbackDrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {

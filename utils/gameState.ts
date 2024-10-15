@@ -25,6 +25,7 @@ export interface Zombie {
   speed: number;
   currentFrame: number;
   lastAnimationUpdate: number;
+  scale: number; // Add this new property
 }
 
 export interface Bullet {
@@ -34,6 +35,10 @@ export interface Bullet {
   height: number;
   speed: number;
   direction: { x: number; y: number };
+  trail: { x: number; y: number }[];
+  creationTime: number;
+  glowIntensity: number;
+  visible: boolean;
 }
 
 export interface MathBlock {
@@ -60,6 +65,7 @@ export interface GameState {
   mathBlocks: MathBlock[] | null; // Change this from [MathBlock, MathBlock] to MathBlock[]
   lastMathBlockSpawn: number;
   playerFormation: Player[];
+  setGameState?: React.Dispatch<React.SetStateAction<GameState>>;
 }
 
 export interface MathPuzzle {

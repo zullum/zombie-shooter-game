@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GameState, initialGameState } from '../utils/gameState';
-import { updateGame, handleCanvasClick as updateCanvasClick } from '../utils/updateGame';
+import { updateGame, handleCanvasClick as updateCanvasClick, initializeAudio } from '../utils/updateGame';
 import { drawGame } from '../utils/drawGame';
 import { useGameLoop } from '../hooks/useGameLoop';
 
@@ -14,14 +14,32 @@ const playerImages = {
 
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [gameState, setGameState] = useState<GameState>(initialGameState);
+  const [gameState, setGameState] = useState<GameState>({
+    ...initialGameState,
+    setGameState: null as any, // We'll set this properly in the useEffect
+  });
+
+  // Update the gameState with setGameState after initialization
+  useEffect(() => {
+    setGameState(prevState => ({
+      ...prevState,
+      setGameState: (updater: React.SetStateAction<GameState>) => {
+        setGameState(current => {
+          const nextState = typeof updater === 'function' ? updater(current) : updater;
+          return { ...nextState, setGameState: current.setGameState };
+        });
+      },
+    }));
+  }, []);
 
   const startGame = () => {
     console.log('Starting game');
+    initializeAudio().catch(console.error); // Initialize audio when starting the game
     setGameState(prevState => {
       const newState = {
         ...initialGameState,
-        gameStarted: true
+        gameStarted: true,
+        setGameState: prevState.setGameState,
       };
       console.log('Initial game state:', newState);
       return newState;
@@ -29,19 +47,19 @@ const Game: React.FC = () => {
   };
 
   const restartGame = () => {
-    setGameState({ ...initialGameState, gameStarted: true });
+    setGameState(prevState => ({
+      ...initialGameState,
+      gameStarted: true,
+      setGameState: prevState.setGameState,
+    }));
     console.log('Game restarted'); // Debugging log
   };
 
   const updateGameState = useCallback(() => {
-    if (gameState?.gameStarted && !gameState?.gameOver) {
-      setGameState(prevState => {
-        const updatedState = updateGame(prevState);
-        console.log('Game state updated:', updatedState.gameStarted, updatedState.gameOver);
-        return updatedState;
-      });
+    if (gameState.gameStarted && !gameState.gameOver) {
+      setGameState(prevState => updateGame(prevState));
     }
-  }, [gameState?.gameStarted, gameState?.gameOver]);
+  }, [gameState.gameStarted, gameState.gameOver]);
 
   useGameLoop(updateGameState);
 
@@ -148,6 +166,10 @@ const Game: React.FC = () => {
       const y = event.clientY - rect.top;
       setGameState(prevState => updateCanvasClick(prevState, x, y));
     }
+  }, []);
+
+  useEffect(() => {
+    initializeAudio().catch(console.error);
   }, []);
 
   return (
