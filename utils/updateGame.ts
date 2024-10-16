@@ -1,4 +1,4 @@
-import { GameState, Zombie, BossZombie, Player, Bullet, MathBlock, MathPuzzle, INITIAL_WAVE_INTERVAL, initialGameState } from './gameState';
+import { GameState, Zombie, BossZombie, Player, Bullet, MathBlock, MathPuzzle, INITIAL_WAVE_INTERVAL, initialGameState, GameSize } from './gameState';
 import { Howl, Howler } from 'howler';
 
 declare module 'howler' {
@@ -7,11 +7,8 @@ declare module 'howler' {
   }
 }
 
-const CANVAS_WIDTH = 360;
-const CANVAS_HEIGHT = 640;
 const PADDING = 0.05; // 5% padding on each side
 const MATH_BLOCK_GAP = 0.2; // 20% gap between blocks
-const MATH_BLOCK_WIDTH = (CANVAS_WIDTH * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2; // Width of each math block with padding and gap
 const ZOMBIE_SPAWN_INTERVAL = 200; // Spawn a zombie every 200ms (increased frequency)
 const SHOOT_COOLDOWN = 700; // Increase cooldown to 700ms for even less frequent shooting
 const INITIAL_ZOMBIES_PER_WAVE = 4; // Reduced from 3
@@ -28,7 +25,7 @@ const PLAYER_WIDTH = 15;
 const PLAYER_HEIGHT = 15;
 const FORMATION_ROWS = 3;
 
-const MAX_FORMATION_WIDTH = 10;
+const MAX_FORMATION_WIDTH = 12;
 
 const TOTAL_ZOMBIE_FRAMES = 8; // Adjust this based on the actual number of zombie frames
 const ZOMBIE_ANIMATION_FRAME_DURATION = 50; // milliseconds per frame (adjust for desired speed)
@@ -173,8 +170,8 @@ interface BossZombie extends Zombie {
 }
 
 const BOSS_WAVE_INTERVAL = 5;
-const INITIAL_BOSS_HEALTH = 20;
-const BOSS_HEALTH_INCREMENT = 5;
+const INITIAL_BOSS_HEALTH = 10;
+const BOSS_HEALTH_INCREMENT = 3;
 const INITIAL_BOSS_SCALE = 5;
 const BOSS_SCALE_INCREMENT = 0.5;
 
@@ -213,13 +210,13 @@ interface BossZombie extends Zombie {
 // Add this constant near the top of the file with other constants
 const ZOMBIE_SPAWN_Y_RANGE = -50; // Zombies will spawn up to 50 pixels above the canvas
 
-// Update the createZombie function
-export const createZombie = (wave: number): Zombie => {
+// Update the createZombie function signature to include gameSize
+export const createZombie = (wave: number, gameSize: GameSize): Zombie => {
   const baseSpeed = BASE_ZOMBIE_SPEED + (wave - 1) * SPEED_INCREMENT_PER_WAVE;
   const speedVariation = baseSpeed * 0.2; // 20% speed variation
 
   return {
-    x: Math.random() * CANVAS_WIDTH,
+    x: Math.random() * gameSize.width,
     y: -20, // Spawn above the canvas
     width: 15,
     height: 15,
@@ -238,9 +235,9 @@ const BOSS_SPAWN_INTERVAL = 20000; // 45 seconds between boss spawns (adjusted f
 // Add this constant
 const BOSS_SPEED = 0.5; // Slower speed for the boss
 
-// Update the createBossZombie function
-const createBossZombie = (bossWaveCount: number): BossZombie => ({
-  x: CANVAS_WIDTH / 2,
+// Update the createBossZombie function as well
+const createBossZombie = (bossWaveCount: number, gameSize: GameSize): BossZombie => ({
+  x: gameSize.width / 2,
   y: -50, // Spawn above the canvas
   width: 30, // Increase width
   height: 30, // Increase height
@@ -291,8 +288,12 @@ const resetGame = (): GameState => {
 // Add this constant near the top of the file with other constants
 const MAX_ZOMBIES_PER_WAVE = 20; // Maximum number of zombies per wave
 
+// Add these constants at the top of the file
+const PADDING_TOP = 40;
+const PADDING_BOTTOM = 20;
+
 // Modify the updateGame function
-const updateGame = (state: GameState, audioContext: AudioContext | null, bulletSoundBuffer: AudioBuffer | null): GameState => {
+const updateGame = (state: GameState, audioContext: AudioContext | null, bulletSoundBuffer: AudioBuffer | null, gameSize: GameSize): GameState => {
   if (!state.gameStarted || state.gameOver) return state;
 
   const newState = { ...state };
@@ -302,24 +303,24 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
   const cols = Math.min(Math.ceil(newState.playerCount / FORMATION_ROWS), MAX_FORMATION_WIDTH);
   const formationWidth = (cols - 1) * (PLAYER_WIDTH + PLAYER_GAP) + PLAYER_WIDTH;
 
-  // Update main player position with reduced speed
+  // Update main player position with reduced speed and respect padding
   let newPlayerX = newState.player.x;
   let newPlayerY = newState.player.y;
   if (state.player.movingLeft) {
     newPlayerX = Math.max(0, newPlayerX - PLAYER_SPEED);
   }
   if (state.player.movingRight) {
-    newPlayerX = Math.min(CANVAS_WIDTH - formationWidth, newPlayerX + PLAYER_SPEED);
+    newPlayerX = Math.min(gameSize.width - formationWidth, newPlayerX + PLAYER_SPEED);
   }
   if (state.player.movingUp) {
-    newPlayerY = Math.max(0, newPlayerY - PLAYER_SPEED);
+    newPlayerY = Math.max(PADDING_TOP, newPlayerY - PLAYER_SPEED);
   }
   if (state.player.movingDown) {
-    newPlayerY = Math.min(CANVAS_HEIGHT - PLAYER_HEIGHT, newPlayerY + PLAYER_SPEED);
+    newPlayerY = Math.min(gameSize.height - PLAYER_HEIGHT - PADDING_BOTTOM, newPlayerY + PLAYER_SPEED);
   }
 
   // Calculate player formation based on the new position
-  const playerFormation = calculatePlayerFormation(newState.playerCount, newPlayerX, newPlayerY);
+  const playerFormation = calculatePlayerFormation(newState.playerCount, newPlayerX, newPlayerY, gameSize);
 
   // Update main player and formation
   newState.player = {
@@ -353,7 +354,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
 
   // Spawn zombies
   if (zombiesToSpawnThisFrame > 0) {
-    newState.zombies.push(createZombie(newState.wave));
+    newState.zombies.push(createZombie(newState.wave, gameSize));
     newState.lastZombieSpawn = currentTime;
   }
 
@@ -363,7 +364,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
       (!newState.bossZombie || !newState.bossZombie.isActive) &&
       currentTime - newState.lastBossSpawn > BOSS_SPAWN_INTERVAL) {
     const bossWaveCount = Math.floor((newState.wave - FIRST_BOSS_WAVE) / BOSS_WAVE_FREQUENCY) + 1;
-    newState.bossZombie = createBossZombie(bossWaveCount);
+    newState.bossZombie = createBossZombie(bossWaveCount, gameSize);
     newState.lastBossSpawn = currentTime;
     console.log(`Boss zombie spawned at wave ${newState.wave}`);
   }
@@ -428,13 +429,13 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
 
     // Remove bullets that are off-screen or too old
     return (currentTime - bullet.creationTime < 5000) && // Remove after 5 seconds
-           (bullet.y + bullet.height > 0) && (bullet.y < CANVAS_HEIGHT) &&
-           (bullet.x + bullet.width > 0) && (bullet.x < CANVAS_WIDTH);
+           (bullet.y + bullet.height > 0) && (bullet.y < gameSize.height) &&
+           (bullet.x + bullet.width > 0) && (bullet.x < gameSize.width);
   });
 
   // Update regular zombies and check for collisions with players
   newState.zombies = newState.zombies.map(zombie => {
-    const updatedZombie = updateZombie(zombie, newState);
+    const updatedZombie = updateZombie(zombie, newState, gameSize);
     
     // Check for collisions with players
     if (currentTime - updatedZombie.lastAttackTime > ZOMBIE_ATTACK_COOLDOWN) {
@@ -454,7 +455,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
 
   // Update boss zombie if active
   if (newState.bossZombie && newState.bossZombie.isActive) {
-    newState.bossZombie = updateZombie(newState.bossZombie, newState) as BossZombie;
+    newState.bossZombie = updateZombie(newState.bossZombie, newState, gameSize) as BossZombie;
     
     // Check for collisions with players
     if (currentTime - newState.bossZombie.lastAttackTime > BOSS_ATTACK_COOLDOWN) {
@@ -474,7 +475,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
   }
 
   // Recalculate player formation after potential player count change
-  newState.playerFormation = calculatePlayerFormation(newState.playerCount, newState.player.x, CANVAS_HEIGHT - PLAYER_HEIGHT - 10);
+  newState.playerFormation = calculatePlayerFormation(newState.playerCount, newState.player.x, gameSize.height - PLAYER_HEIGHT - PADDING_BOTTOM, gameSize);
 
   // Check if the game is over
   if (newState.playerCount <= 0) {
@@ -528,12 +529,12 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
         value = 1;
     }
 
-    const leftBlockX = CANVAS_WIDTH * PADDING;
-    const rightBlockX = CANVAS_WIDTH * (1 - PADDING) - MATH_BLOCK_WIDTH;
+    const leftBlockX = gameSize.width * PADDING;
+    const rightBlockX = gameSize.width * (1 - PADDING) - (gameSize.width * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2;
 
     newState.mathBlocks = [
-      { operation, value, x: leftBlockX, y: 0, width: MATH_BLOCK_WIDTH, height: 30 },
-      { operation: operation === '+' ? '-' : '+', value, x: rightBlockX, y: 0, width: MATH_BLOCK_WIDTH, height: 30 }
+      { operation, value, x: leftBlockX, y: 0, width: (gameSize.width * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2, height: 30 },
+      { operation: operation === '+' ? '-' : '+', value, x: rightBlockX, y: 0, width: (gameSize.width * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2, height: 30 }
     ];
     newState.lastMathBlockSpawn = currentTime;
   }
@@ -570,7 +571,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
       }
 
       // Keep the block if it's still on screen and hasn't collided
-      return !collision && block.y <= CANVAS_HEIGHT;
+      return !collision && block.y <= gameSize.height;
     });
 
     // If all blocks are removed, set mathBlocks to null
@@ -668,7 +669,7 @@ const handleCanvasClick = (state: GameState, clickX: number, clickY: number): Ga
   return newState;
 };
 
-const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: number): Player[] => {
+const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: number, gameSize: GameSize): Player[] => {
   const formation: Player[] = [];
   const actualPlayerCount = Math.max(1, playerCount); // Ensure at least one player
 
@@ -687,8 +688,8 @@ const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: num
 
   const formationWidth = (cols - 1) * (PLAYER_WIDTH + PLAYER_GAP) + PLAYER_WIDTH;
   const formationHeight = (rows - 1) * (PLAYER_HEIGHT + PLAYER_GAP) + PLAYER_HEIGHT;
-  const startX = Math.max(0, Math.min(baseX, CANVAS_WIDTH - formationWidth));
-  const startY = Math.min(baseY, CANVAS_HEIGHT - formationHeight);
+  const startX = Math.max(0, Math.min(baseX, gameSize.width - formationWidth));
+  const startY = Math.min(baseY, gameSize.height - formationHeight);
 
   let remainingPlayers = actualPlayerCount;
 
@@ -736,7 +737,7 @@ const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: num
   return formation;
 };
 
-const updateZombie = (zombie: Zombie | BossZombie, state: GameState): Zombie | BossZombie => {
+const updateZombie = (zombie: Zombie | BossZombie, state: GameState, gameSize: GameSize): Zombie | BossZombie => {
   const oldX = zombie.x;
   const oldY = zombie.y;
 
@@ -752,7 +753,7 @@ const updateZombie = (zombie: Zombie | BossZombie, state: GameState): Zombie | B
 
   // Update zombie scale based on y position (only for regular zombies)
   if (!('isActive' in zombie)) {
-    const progressToPlayer = zombie.y / CANVAS_HEIGHT;
+    const progressToPlayer = zombie.y / gameSize.height;
     zombie.scale = ZOMBIE_MIN_SCALE + (ZOMBIE_MAX_SCALE - ZOMBIE_MIN_SCALE) * progressToPlayer;
   }
 
@@ -789,8 +790,8 @@ const updateZombie = (zombie: Zombie | BossZombie, state: GameState): Zombie | B
 
   // Keep zombies within canvas boundaries
   const scaledRadius = ZOMBIE_RADIUS * zombie.scale;
-  zombie.x = Math.max(scaledRadius, Math.min(CANVAS_WIDTH - scaledRadius, zombie.x));
-  zombie.y = Math.max(scaledRadius, Math.min(CANVAS_HEIGHT - scaledRadius, zombie.y));
+  zombie.x = Math.max(scaledRadius, Math.min(gameSize.width - scaledRadius, zombie.x));
+  zombie.y = Math.max(scaledRadius, Math.min(gameSize.height - scaledRadius, zombie.y));
 
   // Update zombie animation
   const currentTime = Date.now();

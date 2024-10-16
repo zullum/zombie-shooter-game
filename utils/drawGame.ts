@@ -1,7 +1,7 @@
 import { GameState, Player, Zombie, BossZombie } from './gameState';
 
 const TOTAL_PLAYER_FRAMES = 15;
-const TOTAL_ZOMBIE_FRAMES = 8; // Adjust this based on the actual number of zombie frames
+const TOTAL_ZOMBIE_FRAMES = 8;
 const playerImages: HTMLImageElement[] = [];
 const zombieImages: HTMLImageElement[] = [];
 
@@ -25,121 +25,58 @@ let zombieImagesLoaded = false;
 
 // Load player images
 Promise.all(playerImages.map(img => new Promise(resolve => {
-  img.onload = () => {
-    console.log(`Player image loaded: ${img.src}, dimensions: ${img.width}x${img.height}`);
-    resolve(null);
-  };
-  img.onerror = () => {
-    console.error(`Failed to load player image: ${img.src}`);
-    resolve(null);
-  };
+  img.onload = () => resolve(null);
+  img.onerror = () => resolve(null);
 }))).then(() => {
   playerImagesLoaded = true;
-  console.log('All player images loaded');
 });
 
 // Load zombie images
 Promise.all(zombieImages.map(img => new Promise(resolve => {
-  img.onload = () => {
-    console.log(`Zombie image loaded: ${img.src}, dimensions: ${img.width}x${img.height}`);
-    resolve(null);
-  };
-  img.onerror = () => {
-    console.error(`Failed to load zombie image: ${img.src}`);
-    resolve(null);
-  };
+  img.onload = () => resolve(null);
+  img.onerror = () => resolve(null);
 }))).then(() => {
   zombieImagesLoaded = true;
-  console.log('All zombie images loaded');
 });
 
-// Add this at the top of the file
 const bulletSound = new Audio('/audio/deserteagle.mp3');
 
+const PADDING_TOP = 40;
+const PADDING_BOTTOM = 20;
+const BOTTOM_PADDING = 40;
+
 export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
-  // Clear the canvas
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-  if (!state.gameStarted) {
-    // Draw start screen
-    return;
-  }
+  if (!state.gameStarted) return;
 
-  // Draw players in formation
   state.playerFormation.forEach((player, index) => {
-    drawPlayer(ctx, player, index);
+    const adjustedPlayer = {
+      ...player,
+      y: player.y - BOTTOM_PADDING
+    };
+    drawPlayer(ctx, adjustedPlayer, index);
   });
 
-  // Draw zombies
   state.zombies.forEach((zombie, index) => {
     drawZombie(ctx, zombie, index);
   });
 
-  // Draw boss zombie
   if (state.bossZombie && state.bossZombie.isActive) {
     drawBossZombie(ctx, state.bossZombie);
   }
 
-  // Draw bullets with enhanced appearance
   state.bullets.forEach(bullet => {
-    console.log('Drawing bullet:', bullet); // Add this line
     if (bullet.visible) {
-      // Draw bullet trail
-      if (bullet.trail.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(bullet.trail[0].x, bullet.trail[0].y);
-        for (let i = 1; i < bullet.trail.length; i++) {
-          ctx.lineTo(bullet.trail[i].x, bullet.trail[i].y);
-        }
-        ctx.strokeStyle = `rgba(255, 255, 0, ${0.1 * bullet.glowIntensity})`; // Adjusted opacity
-        ctx.lineWidth = 2; // Fixed width for trail
-        ctx.lineCap = 'round';
-        ctx.stroke();
-      }
-
-      // Draw bullet
-      ctx.fillStyle = `rgba(255, 255, 100, ${bullet.glowIntensity})`;
-      ctx.beginPath();
-      ctx.arc(bullet.x, bullet.y, bullet.width / 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Draw bullet glow
-      const glowGradient = ctx.createRadialGradient(
-        bullet.x, bullet.y, 0,
-        bullet.x, bullet.y, bullet.width * 2
-      );
-      glowGradient.addColorStop(0, `rgba(255, 255, 100, ${bullet.glowIntensity * 0.5})`);
-      glowGradient.addColorStop(1, 'rgba(255, 255, 100, 0)');
-      ctx.fillStyle = glowGradient;
-      ctx.beginPath();
-      ctx.arc(bullet.x, bullet.y, bullet.width * 2, 0, Math.PI * 2);
-      ctx.fill();
+      drawEnhancedBullet(ctx, bullet);
     }
   });
 
-  // Draw score in top right corner
-  ctx.fillStyle = 'white';
-  ctx.font = '16px Arial';
-  ctx.textAlign = 'right';
-  ctx.fillText(`Score: ${state.score}`, ctx.canvas.width - 10, 20);
+  drawEnhancedText(ctx, state);
 
-  // Draw player count below the score
-  ctx.fillText(`Players: ${state.playerCount}`, ctx.canvas.width - 10, 40);
-
-  // Draw wave and health
-  ctx.textAlign = 'left';
-  ctx.fillText(`Wave: ${state.wave}`, 10, 20);
-  ctx.fillText(`Health: ${state.player.health}`, 10, 40);
-
-  // Draw math blocks
   if (state.mathBlocks) {
     state.mathBlocks.forEach(block => {
-      ctx.fillStyle = block.operation === '+' || block.operation === '*' ? 'green' : 'red';
-      ctx.fillRect(block.x, block.y, block.width, block.height);
-      ctx.fillStyle = 'white';
-      ctx.font = '20px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${block.operation}${block.value}`, block.x + block.width / 2, block.y + block.height / 2 + 7);
+      drawEnhancedMathBlock(ctx, block, state.gameSize);
     });
   }
 };
@@ -160,25 +97,10 @@ function drawPlayer(ctx: CanvasRenderingContext2D, player: Player, index: number
         frameWidth,
         frameHeight
       );
-
-      console.log(`Player ${index} drawn:`, {
-        currentFrame,
-        animationState: player.animationState,
-        x: player.x,
-        y: player.y,
-        playerWidth: player.width,
-        playerHeight: player.height,
-        frameWidth,
-        frameHeight,
-        imageWidth: image.width,
-        imageHeight: image.height
-      });
     } else {
-      console.error(`Player image not loaded for frame: ${currentFrame}`);
       fallbackDrawPlayer(ctx, player);
     }
   } else {
-    console.warn('Player images not loaded yet');
     fallbackDrawPlayer(ctx, player);
   }
 }
@@ -199,25 +121,10 @@ function drawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie, index: number
         frameWidth,
         frameHeight
       );
-
-      console.log(`Zombie ${index} drawn:`, {
-        currentFrame,
-        x: zombie.x,
-        y: zombie.y,
-        zombieWidth: zombie.width,
-        zombieHeight: zombie.height,
-        frameWidth,
-        frameHeight,
-        imageWidth: image.width,
-        imageHeight: image.height,
-        scale: zombie.scale
-      });
     } else {
-      console.error(`Zombie image not loaded for frame: ${currentFrame}`);
       fallbackDrawZombie(ctx, zombie);
     }
   } else {
-    console.warn('Zombie images not loaded yet');
     fallbackDrawZombie(ctx, zombie);
   }
 }
@@ -239,42 +146,26 @@ function drawBossZombie(ctx: CanvasRenderingContext2D, bossZombie: BossZombie) {
         frameHeight
       );
 
-      // Draw health bar
       const healthBarWidth = frameWidth;
       const healthBarHeight = 10;
       const healthBarY = bossZombie.y - frameHeight / 2 - healthBarHeight - 5;
 
-      // Background of health bar
       ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
       ctx.fillRect(bossZombie.x - healthBarWidth / 2, healthBarY, healthBarWidth, healthBarHeight);
 
-      // Foreground of health bar (remaining health)
       const healthPercentage = bossZombie.currentHealth / bossZombie.maxHealth;
       ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
       ctx.fillRect(bossZombie.x - healthBarWidth / 2, healthBarY, healthBarWidth * healthPercentage, healthBarHeight);
-
-      console.log(`Boss Zombie drawn:`, {
-        currentFrame,
-        x: bossZombie.x,
-        y: bossZombie.y,
-        frameWidth,
-        frameHeight,
-        scale: bossZombie.scale,
-        currentHealth: bossZombie.currentHealth,
-        maxHealth: bossZombie.maxHealth
-      });
     } else {
-      console.error(`Boss Zombie image not loaded for frame: ${currentFrame}`);
       fallbackDrawBossZombie(ctx, bossZombie);
     }
   } else {
-    console.warn('Zombie images not loaded yet');
     fallbackDrawBossZombie(ctx, bossZombie);
   }
 }
 
 function fallbackDrawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie) {
-  ctx.fillStyle = 'rgba(0, 255, 0, 0.1)'; // Very transparent green
+  ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
   const scaledWidth = zombie.width * zombie.scale;
   const scaledHeight = zombie.height * zombie.scale;
   ctx.fillRect(
@@ -286,12 +177,12 @@ function fallbackDrawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie) {
 }
 
 function fallbackDrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {
-  ctx.fillStyle = 'rgba(0, 0, 255, 0.1)'; // Very transparent blue
+  ctx.fillStyle = 'rgba(0, 0, 255, 0.1)';
   ctx.fillRect(player.x, player.y, player.width, player.height);
 }
 
 function fallbackDrawBossZombie(ctx: CanvasRenderingContext2D, bossZombie: BossZombie) {
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // Red for boss zombie
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
   const scaledWidth = bossZombie.width * bossZombie.scale;
   const scaledHeight = bossZombie.height * bossZombie.scale;
   ctx.fillRect(
@@ -301,17 +192,127 @@ function fallbackDrawBossZombie(ctx: CanvasRenderingContext2D, bossZombie: BossZ
     scaledHeight
   );
 
-  // Draw health bar
   const healthBarWidth = scaledWidth;
   const healthBarHeight = 10;
   const healthBarY = bossZombie.y - scaledHeight / 2 - healthBarHeight - 5;
 
-  // Background of health bar
   ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
   ctx.fillRect(bossZombie.x - healthBarWidth / 2, healthBarY, healthBarWidth, healthBarHeight);
 
-  // Foreground of health bar (remaining health)
   const healthPercentage = bossZombie.currentHealth / bossZombie.maxHealth;
   ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
   ctx.fillRect(bossZombie.x - healthBarWidth / 2, healthBarY, healthBarWidth * healthPercentage, healthBarHeight);
+}
+
+function drawEnhancedBullet(ctx: CanvasRenderingContext2D, bullet: any) {
+  if (bullet.trail.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(bullet.trail[0].x, bullet.trail[0].y);
+    for (let i = 1; i < bullet.trail.length; i++) {
+      ctx.lineTo(bullet.trail[i].x, bullet.trail[i].y);
+    }
+    const gradient = ctx.createLinearGradient(
+      bullet.trail[0].x, bullet.trail[0].y,
+      bullet.trail[bullet.trail.length - 1].x, bullet.trail[bullet.trail.length - 1].y
+    );
+    gradient.addColorStop(0, `rgba(255, 165, 0, ${0.1 * bullet.glowIntensity})`);
+    gradient.addColorStop(1, `rgba(255, 69, 0, ${0.1 * bullet.glowIntensity})`);
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  const bulletGradient = ctx.createRadialGradient(
+    bullet.x, bullet.y, 0,
+    bullet.x, bullet.y, bullet.width / 2
+  );
+  bulletGradient.addColorStop(0, `rgba(255, 255, 100, ${bullet.glowIntensity})`);
+  bulletGradient.addColorStop(1, `rgba(255, 69, 0, ${bullet.glowIntensity})`);
+  ctx.fillStyle = bulletGradient;
+  ctx.beginPath();
+  ctx.arc(bullet.x, bullet.y, bullet.width / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  const glowGradient = ctx.createRadialGradient(
+    bullet.x, bullet.y, 0,
+    bullet.x, bullet.y, bullet.width * 2
+  );
+  glowGradient.addColorStop(0, `rgba(255, 165, 0, ${bullet.glowIntensity * 0.5})`);
+  glowGradient.addColorStop(1, 'rgba(255, 69, 0, 0)');
+  ctx.fillStyle = glowGradient;
+  ctx.beginPath();
+  ctx.arc(bullet.x, bullet.y, bullet.width * 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawEnhancedText(ctx: CanvasRenderingContext2D, state: GameState) {
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  const drawStylizedText = (text: string, x: number, y: number, fontSize: number) => {
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+
+    const gradient = ctx.createLinearGradient(x, y, x, y + fontSize);
+    gradient.addColorStop(0, '#FFD700');
+    gradient.addColorStop(1, '#FF4500');
+    ctx.fillStyle = gradient;
+
+    ctx.fillText(text, x, y);
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  };
+
+  drawStylizedText(`Score: ${state.score}`, 10, 10, 24);
+  drawStylizedText(`Wave: ${state.wave}`, 10, 40, 24);
+  drawStylizedText(`Players: ${state.playerCount}`, 10, 70, 24);
+}
+
+function drawEnhancedMathBlock(ctx: CanvasRenderingContext2D, block: any, gameSize: { width: number; height: number }) {
+  const isPositive = block.operation === '+' || block.operation === '*';
+  const baseColor = isPositive ? [0, 255, 0] : [255, 0, 0];
+  const gradientColor = isPositive ? [0, 128, 0] : [128, 0, 0];
+
+  const gradient = ctx.createLinearGradient(block.x, block.y, block.x, block.y + block.height);
+  gradient.addColorStop(0, `rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, 0.4)`);
+  gradient.addColorStop(1, `rgba(${gradientColor[0]}, ${gradientColor[1]}, ${gradientColor[2]}, 0.4)`);
+
+  const pulseIntensity = Math.sin(Date.now() / 500) * 0.1 + 0.9;
+
+  ctx.beginPath();
+  ctx.moveTo(block.x + 10, block.y);
+  ctx.lineTo(block.x + block.width - 10, block.y);
+  ctx.quadraticCurveTo(block.x + block.width, block.y, block.x + block.width, block.y + 10);
+  ctx.lineTo(block.x + block.width, block.y + block.height - 10);
+  ctx.quadraticCurveTo(block.x + block.width, block.y + block.height, block.x + block.width - 10, block.y + block.height);
+  ctx.lineTo(block.x + 10, block.y + block.height);
+  ctx.quadraticCurveTo(block.x, block.y + block.height, block.x, block.y + block.height - 10);
+  ctx.lineTo(block.x, block.y + 10);
+  ctx.quadraticCurveTo(block.x, block.y, block.x + 10, block.y);
+  ctx.closePath();
+
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.shadowColor = isPositive ? `rgba(0, 255, 0, ${0.3 * pulseIntensity})` : `rgba(255, 0, 0, ${0.3 * pulseIntensity})`;
+  ctx.shadowBlur = 15 * pulseIntensity;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.fill();
+
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 20px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${block.operation}${block.value}`, block.x + block.width / 2, block.y + block.height / 2);
 }

@@ -75,6 +75,7 @@ export interface GameState {
   waveInterval: number;
   lastWaveTime: number;
   lastBossSpawn: number;
+  gameSize: GameSize;
 }
 
 export interface MathPuzzle {
@@ -90,10 +91,15 @@ export interface BossZombie extends Zombie {
   playersEliminatedPerAttack: number;
 }
 
+export interface GameSize {
+  width: number;
+  height: number;
+}
+
 export const initialGameState: GameState = {
   player: {
-    x: 180,
-    y: 580,
+    x: 270, // Half of the new width
+    y: 870, // Adjusted for new height
     width: 60,  // Adjust if needed
     height: 60, // Adjust if needed
     speed: 10,
@@ -124,6 +130,7 @@ export const initialGameState: GameState = {
   waveInterval: INITIAL_WAVE_INTERVAL,
   lastWaveTime: Date.now(),
   lastBossSpawn: 0,
+  gameSize: { width: 540, height: 960 }, // Default size, will be updated in the Game component
 };
 
 const PADDING = 0.2; // 20% padding
