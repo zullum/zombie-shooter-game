@@ -1,4 +1,4 @@
-import { GameState, Player, Zombie } from './gameState';
+import { GameState, Player, Zombie, BossZombie } from './gameState';
 
 const TOTAL_PLAYER_FRAMES = 15;
 const TOTAL_ZOMBIE_FRAMES = 8; // Adjust this based on the actual number of zombie frames
@@ -75,6 +75,11 @@ export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
     drawZombie(ctx, zombie, index);
   });
 
+  // Draw boss zombie
+  if (state.bossZombie && state.bossZombie.isActive) {
+    drawBossZombie(ctx, state.bossZombie);
+  }
+
   // Draw bullets with enhanced appearance
   state.bullets.forEach(bullet => {
     console.log('Drawing bullet:', bullet); // Add this line
@@ -136,18 +141,6 @@ export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
       ctx.textAlign = 'center';
       ctx.fillText(`${block.operation}${block.value}`, block.x + block.width / 2, block.y + block.height / 2 + 7);
     });
-  }
-
-  // Draw game over screen
-  if (state.gameOver) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    ctx.fillStyle = 'white';
-    ctx.font = '32px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('Game Over', ctx.canvas.width / 2, ctx.canvas.height / 2 - 30);
-    ctx.font = '20px Arial';
-    ctx.fillText(`Final Score: ${state.score}`, ctx.canvas.width / 2, ctx.canvas.height / 2 + 30);
   }
 };
 
@@ -229,6 +222,57 @@ function drawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie, index: number
   }
 }
 
+function drawBossZombie(ctx: CanvasRenderingContext2D, bossZombie: BossZombie) {
+  if (zombieImagesLoaded) {
+    const currentFrame = Math.floor(bossZombie.currentFrame) % TOTAL_ZOMBIE_FRAMES;
+    const image = zombieImages[currentFrame];
+    if (image && image.complete && image.naturalWidth !== 0) {
+      const scale = Math.max(bossZombie.width / image.width, bossZombie.height / image.height) * bossZombie.scale;
+      const frameWidth = image.width * scale;
+      const frameHeight = image.height * scale;
+      
+      ctx.drawImage(
+        image,
+        bossZombie.x - frameWidth / 2,
+        bossZombie.y - frameHeight / 2,
+        frameWidth,
+        frameHeight
+      );
+
+      // Draw health bar
+      const healthBarWidth = frameWidth;
+      const healthBarHeight = 10;
+      const healthBarY = bossZombie.y - frameHeight / 2 - healthBarHeight - 5;
+
+      // Background of health bar
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.fillRect(bossZombie.x - healthBarWidth / 2, healthBarY, healthBarWidth, healthBarHeight);
+
+      // Foreground of health bar (remaining health)
+      const healthPercentage = bossZombie.currentHealth / bossZombie.maxHealth;
+      ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+      ctx.fillRect(bossZombie.x - healthBarWidth / 2, healthBarY, healthBarWidth * healthPercentage, healthBarHeight);
+
+      console.log(`Boss Zombie drawn:`, {
+        currentFrame,
+        x: bossZombie.x,
+        y: bossZombie.y,
+        frameWidth,
+        frameHeight,
+        scale: bossZombie.scale,
+        currentHealth: bossZombie.currentHealth,
+        maxHealth: bossZombie.maxHealth
+      });
+    } else {
+      console.error(`Boss Zombie image not loaded for frame: ${currentFrame}`);
+      fallbackDrawBossZombie(ctx, bossZombie);
+    }
+  } else {
+    console.warn('Zombie images not loaded yet');
+    fallbackDrawBossZombie(ctx, bossZombie);
+  }
+}
+
 function fallbackDrawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie) {
   ctx.fillStyle = 'rgba(0, 255, 0, 0.1)'; // Very transparent green
   const scaledWidth = zombie.width * zombie.scale;
@@ -244,4 +288,30 @@ function fallbackDrawZombie(ctx: CanvasRenderingContext2D, zombie: Zombie) {
 function fallbackDrawPlayer(ctx: CanvasRenderingContext2D, player: Player) {
   ctx.fillStyle = 'rgba(0, 0, 255, 0.1)'; // Very transparent blue
   ctx.fillRect(player.x, player.y, player.width, player.height);
+}
+
+function fallbackDrawBossZombie(ctx: CanvasRenderingContext2D, bossZombie: BossZombie) {
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // Red for boss zombie
+  const scaledWidth = bossZombie.width * bossZombie.scale;
+  const scaledHeight = bossZombie.height * bossZombie.scale;
+  ctx.fillRect(
+    bossZombie.x - scaledWidth / 2,
+    bossZombie.y - scaledHeight / 2,
+    scaledWidth,
+    scaledHeight
+  );
+
+  // Draw health bar
+  const healthBarWidth = scaledWidth;
+  const healthBarHeight = 10;
+  const healthBarY = bossZombie.y - scaledHeight / 2 - healthBarHeight - 5;
+
+  // Background of health bar
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+  ctx.fillRect(bossZombie.x - healthBarWidth / 2, healthBarY, healthBarWidth, healthBarHeight);
+
+  // Foreground of health bar (remaining health)
+  const healthPercentage = bossZombie.currentHealth / bossZombie.maxHealth;
+  ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+  ctx.fillRect(bossZombie.x - healthBarWidth / 2, healthBarY, healthBarWidth * healthPercentage, healthBarHeight);
 }

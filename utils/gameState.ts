@@ -1,5 +1,8 @@
 export const PLAYER_SPACING = 40; // Define player spacing
 
+// Add this constant
+export const INITIAL_WAVE_INTERVAL = 20000; // 20 seconds between waves initially
+
 export interface Player {
   x: number;
   y: number;
@@ -68,12 +71,23 @@ export interface GameState {
   setGameState?: React.Dispatch<React.SetStateAction<GameState>>;
   lastClickPosition?: { x: number; y: number };
   lastClickTime?: number;
+  bossZombie: BossZombie | null;
+  waveInterval: number;
+  lastWaveTime: number;
+  lastBossSpawn: number;
 }
 
 export interface MathPuzzle {
   question: string;
   correctAnswer: number;
   userAnswer: number | null;
+}
+
+export interface BossZombie extends Zombie {
+  isActive: boolean;
+  maxHealth: number;
+  currentHealth: number;
+  playersEliminatedPerAttack: number;
 }
 
 export const initialGameState: GameState = {
@@ -106,6 +120,10 @@ export const initialGameState: GameState = {
   mathBlocks: null,
   lastMathBlockSpawn: 0,
   playerFormation: [],
+  bossZombie: null,
+  waveInterval: INITIAL_WAVE_INTERVAL,
+  lastWaveTime: Date.now(),
+  lastBossSpawn: 0,
 };
 
 const PADDING = 0.2; // 20% padding

@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GameState, initialGameState } from '../utils/gameState';
-import { updateGame, handleCanvasClick as updateCanvasClick, initializeAudio } from '../utils/updateGame';
+import { updateGame, handleCanvasClick as updateCanvasClick, initializeAudio, resetGame } from '../utils/updateGame';
 import { drawGame } from '../utils/drawGame';
 import { useGameLoop } from '../hooks/useGameLoop';
 
@@ -70,19 +70,11 @@ const Game: React.FC = () => {
 
   const startGame = useCallback(() => {
     console.log('Starting game');
-    setGameState(prevState => ({
-      ...initialGameState,
-      gameStarted: true,
-      setGameState: prevState.setGameState,
-    }));
+    setGameState(resetGame());
   }, []);
 
   const restartGame = useCallback(() => {
-    setGameState(prevState => ({
-      ...initialGameState,
-      gameStarted: true,
-      setGameState: prevState.setGameState,
-    }));
+    setGameState(resetGame());
     console.log('Game restarted');
   }, []);
 
@@ -194,39 +186,69 @@ const Game: React.FC = () => {
   return (
     <div className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden">
       <div className="relative w-[360px] h-[640px]">
-        <canvas
-          ref={canvasRef}
-          width={360}
-          height={640}
-          className="border border-white"
-          onClick={(e) => {
-            handleCanvasClick(e);
-            initAudioContext();
-          }}
-        />
+        {(!gameState.gameStarted || gameState.gameOver) && (
+          <video
+            autoPlay
+            loop
+            muted
+            className="absolute w-full h-full object-cover"
+          >
+            <source src="/background/background_video.mp4" type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+        )}
+        {!gameState.gameOver && (
+          <canvas
+            ref={canvasRef}
+            width={360}
+            height={640}
+            className="relative z-10 border border-white"
+            onClick={(e) => {
+              handleCanvasClick(e);
+              initAudioContext();
+            }}
+          />
+        )}
         {!gameState.gameStarted && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-            <button
-              onClick={startGame}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 mb-2"
-            >
-              Start Game
-            </button>
-            {!audioInitialized && !audioInitError && (
-              <p className="text-white">Initializing audio...</p>
-            )}
-            {audioInitError && (
-              <p className="text-yellow-300 text-sm">{audioInitError}</p>
-            )}
+          <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center z-20">
+            <div className="text-center">
+              <button
+                onClick={startGame}
+                className="px-8 py-4 bg-gradient-to-b from-yellow-400 to-orange-500 text-red-900 text-2xl font-bold rounded-lg hover:from-yellow-300 hover:to-orange-400 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl relative overflow-hidden"
+              >
+                <span className="relative z-10">Start Game</span>
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent to-red-600 opacity-50 animate-pulse"></div>
+                <div className="absolute bottom-0 left-0 w-full h-2 bg-red-800 animate-drip"></div>
+              </button>
+              {!audioInitialized && !audioInitError && (
+                <p className="text-white text-lg font-semibold animate-bounce mt-4">Initializing audio...</p>
+              )}
+              {audioInitError && (
+                <p className="text-yellow-300 text-lg font-semibold mt-4">{audioInitError}</p>
+              )}
+            </div>
           </div>
         )}
         {gameState.gameOver && (
-          <button
-            onClick={restartGame}
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Restart Game
-          </button>
+          <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center z-20">
+            <div className="text-center bg-black bg-opacity-70 p-8 rounded-lg border-4 border-red-600">
+              <h2 className="text-6xl font-bold text-red-600 mb-8 animate-pulse shadow-text">Game Over</h2>
+              <p className="text-4xl text-yellow-400 mb-4 shadow-text">
+                Final Score: <span className="font-bold">{gameState.score}</span>
+              </p>
+              <p className="text-4xl text-yellow-400 mb-8 shadow-text">
+                Waves Survived: <span className="font-bold">{gameState.wave - 1}</span>
+              </p>
+              <button
+                onClick={restartGame}
+                className="px-8 py-4 bg-gradient-to-b from-yellow-400 to-orange-500 text-red-900 text-2xl font-bold rounded-lg hover:from-yellow-300 hover:to-orange-400 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl relative overflow-hidden"
+              >
+                <span className="relative z-10">Restart Game</span>
+                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent to-red-600 opacity-50 animate-pulse"></div>
+                <div className="absolute bottom-0 left-0 w-full h-2 bg-red-800 animate-drip"></div>
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
