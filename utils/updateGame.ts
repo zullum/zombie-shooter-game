@@ -534,13 +534,17 @@ const handleCanvasClick = (state: GameState, clickX: number, clickY: number): Ga
 const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: number): Player[] => {
   const formation: Player[] = [];
   const actualPlayerCount = Math.max(1, playerCount); // Ensure at least one player
+
   let cols, rows;
 
-  if (actualPlayerCount < 3) {
+  if (actualPlayerCount <= 4) {
     cols = actualPlayerCount;
     rows = 1;
+  } else if (actualPlayerCount <= 10) {
+    cols = Math.ceil(actualPlayerCount / 2);
+    rows = 2;
   } else {
-    cols = Math.min(Math.ceil(actualPlayerCount / FORMATION_ROWS), MAX_FORMATION_WIDTH);
+    cols = Math.min(Math.ceil(actualPlayerCount / 3), MAX_FORMATION_WIDTH);
     rows = Math.ceil(actualPlayerCount / cols);
   }
 
@@ -549,28 +553,47 @@ const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: num
   const startX = Math.max(0, Math.min(baseX, CANVAS_WIDTH - formationWidth));
   const startY = Math.min(baseY, CANVAS_HEIGHT - formationHeight);
 
-  for (let i = 0; i < actualPlayerCount; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = startX + col * (PLAYER_WIDTH + PLAYER_GAP);
-    const y = startY + row * (PLAYER_HEIGHT + PLAYER_GAP);
+  let remainingPlayers = actualPlayerCount;
 
-    formation.push({
-      x,
-      y,
-      width: PLAYER_WIDTH,
-      height: PLAYER_HEIGHT,
-      speed: PLAYER_SPEED,
-      movingLeft: false,
-      movingRight: false,
-      movingUp: false,
-      movingDown: false,
-      lastShot: 0,
-      health: 100,
-      currentFrame: 0,
-      animationState: 'idle',
-      lastAnimationUpdate: 0,
-    });
+  for (let row = 0; row < rows; row++) {
+    let rowPlayerCount;
+    if (actualPlayerCount <= 4) {
+      rowPlayerCount = actualPlayerCount;
+    } else if (actualPlayerCount <= 10) {
+      rowPlayerCount = row === 0 ? Math.ceil(actualPlayerCount / 2) : Math.floor(actualPlayerCount / 2);
+    } else {
+      rowPlayerCount = Math.min(cols, remainingPlayers);
+    }
+    
+    let rowStartX = startX;
+    if (rowPlayerCount < cols) {
+      // Center the row if it's not full
+      rowStartX += (formationWidth - ((rowPlayerCount - 1) * (PLAYER_WIDTH + PLAYER_GAP) + PLAYER_WIDTH)) / 2;
+    }
+
+    for (let col = 0; col < rowPlayerCount; col++) {
+      const x = rowStartX + col * (PLAYER_WIDTH + PLAYER_GAP);
+      const y = startY + row * (PLAYER_HEIGHT + PLAYER_GAP);
+
+      formation.push({
+        x,
+        y,
+        width: PLAYER_WIDTH,
+        height: PLAYER_HEIGHT,
+        speed: PLAYER_SPEED,
+        movingLeft: false,
+        movingRight: false,
+        movingUp: false,
+        movingDown: false,
+        lastShot: 0,
+        health: 100,
+        currentFrame: 0,
+        animationState: 'idle',
+        lastAnimationUpdate: 0,
+      });
+    }
+
+    remainingPlayers -= rowPlayerCount;
   }
 
   return formation;
