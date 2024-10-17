@@ -39,7 +39,7 @@ Promise.all(zombieImages.map(img => new Promise(resolve => {
   zombieImagesLoaded = true;
 });
 
-const bulletSound = new Audio('/audio/deserteagle.mp3');
+const bulletSound = new Audio('/audio/laser_single.mp3');
 
 const PADDING_TOP = 40;
 const PADDING_BOTTOM = 20;
@@ -51,11 +51,7 @@ export const drawGame = (ctx: CanvasRenderingContext2D, state: GameState) => {
   if (!state.gameStarted) return;
 
   state.playerFormation.forEach((player, index) => {
-    const adjustedPlayer = {
-      ...player,
-      y: player.y - BOTTOM_PADDING
-    };
-    drawPlayer(ctx, adjustedPlayer, index);
+    drawPlayer(ctx, player, index);
   });
 
   state.zombies.forEach((zombie, index) => {
@@ -205,6 +201,7 @@ function fallbackDrawBossZombie(ctx: CanvasRenderingContext2D, bossZombie: BossZ
 }
 
 function drawEnhancedBullet(ctx: CanvasRenderingContext2D, bullet: any) {
+  // Draw bullet trail
   if (bullet.trail.length > 1) {
     ctx.beginPath();
     ctx.moveTo(bullet.trail[0].x, bullet.trail[0].y);
@@ -215,14 +212,15 @@ function drawEnhancedBullet(ctx: CanvasRenderingContext2D, bullet: any) {
       bullet.trail[0].x, bullet.trail[0].y,
       bullet.trail[bullet.trail.length - 1].x, bullet.trail[bullet.trail.length - 1].y
     );
-    gradient.addColorStop(0, `rgba(255, 165, 0, ${0.1 * bullet.glowIntensity})`);
-    gradient.addColorStop(1, `rgba(255, 69, 0, ${0.1 * bullet.glowIntensity})`);
+    gradient.addColorStop(0, `rgba(255, 165, 0, ${bullet.glowIntensity})`);
+    gradient.addColorStop(1, `rgba(255, 69, 0, ${bullet.glowIntensity * 0.5})`);
     ctx.strokeStyle = gradient;
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.stroke();
   }
 
+  // Draw bullet
   const bulletGradient = ctx.createRadialGradient(
     bullet.x, bullet.y, 0,
     bullet.x, bullet.y, bullet.width / 2
@@ -234,6 +232,7 @@ function drawEnhancedBullet(ctx: CanvasRenderingContext2D, bullet: any) {
   ctx.arc(bullet.x, bullet.y, bullet.width / 2, 0, Math.PI * 2);
   ctx.fill();
 
+  // Draw bullet glow
   const glowGradient = ctx.createRadialGradient(
     bullet.x, bullet.y, 0,
     bullet.x, bullet.y, bullet.width * 2
@@ -276,7 +275,7 @@ function drawEnhancedText(ctx: CanvasRenderingContext2D, state: GameState) {
 }
 
 function drawEnhancedMathBlock(ctx: CanvasRenderingContext2D, block: any, gameSize: { width: number; height: number }) {
-  const isPositive = block.operation === '+' || block.operation === '*';
+  const isPositive = block.value >= 0;
   const baseColor = isPositive ? [0, 255, 0] : [255, 0, 0];
   const gradientColor = isPositive ? [0, 128, 0] : [128, 0, 0];
 
@@ -314,5 +313,5 @@ function drawEnhancedMathBlock(ctx: CanvasRenderingContext2D, block: any, gameSi
   ctx.font = 'bold 20px Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${block.operation}${block.value}`, block.x + block.width / 2, block.y + block.height / 2);
+  ctx.fillText(`${block.value > 0 ? '+' : ''}${block.value}`, block.x + block.width / 2, block.y + block.height / 2);
 }

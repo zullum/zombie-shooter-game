@@ -44,7 +44,7 @@ const Game: React.FC = () => {
       setAudioContext(context);
       console.log('AudioContext created:', context);
 
-      const audioFilePath = '/audio/deserteagle.mp3';
+      const audioFilePath = '/audio/laser_single.mp3';
       console.log('Attempting to fetch audio file from:', audioFilePath);
       const response = await fetch(audioFilePath);
       console.log('Fetch response:', response);
@@ -84,43 +84,35 @@ const Game: React.FC = () => {
   }, [initAudio]);
 
   useEffect(() => {
-    // Initialize background music
-    const music = new Audio('/audio/background_music.mp3');
-    music.loop = true;
-    music.volume = 0.5; // Set volume to 50%
-    setBackgroundMusic(music);
-
-    // Start playing the music
-    const playMusic = () => {
-      music.play().catch(error => console.error("Error playing background music:", error));
-    };
-
-    // Try to play immediately (might not work due to autoplay restrictions)
-    playMusic();
-
-    // Add event listener to play music on first user interaction
-    const handleInteraction = () => {
-      playMusic();
-      document.removeEventListener('click', handleInteraction);
-      document.removeEventListener('keydown', handleInteraction);
-    };
-
-    document.addEventListener('click', handleInteraction);
-    document.addEventListener('keydown', handleInteraction);
+    // Initialize gameplay background music
+    const gameMusic = new Audio('/audio/background_music.mp3');
+    gameMusic.loop = true;
+    gameMusic.volume = 0.5;
+    setBackgroundMusic(gameMusic);
 
     // Cleanup function
     return () => {
-      music.pause();
-      music.currentTime = 0;
-      document.removeEventListener('click', handleInteraction);
-      document.removeEventListener('keydown', handleInteraction);
+      gameMusic.pause();
     };
   }, []);
+
+  useEffect(() => {
+    // Control audio based on game state
+    if (backgroundMusic) {
+      if (gameState.gameStarted || gameState.gameOver) {
+        backgroundMusic.play().catch(error => console.error("Error playing background music:", error));
+      } else {
+        backgroundMusic.pause();
+        backgroundMusic.currentTime = 0;
+      }
+    }
+  }, [gameState.gameStarted, gameState.gameOver, backgroundMusic]);
 
   const startGame = useCallback(() => {
     console.log('Starting game');
     setGameState(resetGame());
     if (backgroundMusic) {
+      backgroundMusic.currentTime = 0;
       backgroundMusic.play().catch(error => console.error("Error playing background music:", error));
     }
   }, [backgroundMusic]);
@@ -129,7 +121,7 @@ const Game: React.FC = () => {
     setGameState(resetGame());
     console.log('Game restarted');
     if (backgroundMusic) {
-      backgroundMusic.currentTime = 0; // Restart the music from the beginning
+      backgroundMusic.currentTime = 0;
       backgroundMusic.play().catch(error => console.error("Error playing background music:", error));
     }
   }, [backgroundMusic]);
@@ -211,7 +203,6 @@ const Game: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    console.log('Drawing game', gameState);
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');

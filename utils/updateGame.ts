@@ -7,46 +7,6 @@ declare module 'howler' {
   }
 }
 
-const PADDING = 0.05; // 5% padding on each side
-const MATH_BLOCK_GAP = 0.2; // 20% gap between blocks
-const ZOMBIE_SPAWN_INTERVAL = 200; // Spawn a zombie every 200ms (increased frequency)
-const SHOOT_COOLDOWN = 700; // Increase cooldown to 700ms for even less frequent shooting
-const INITIAL_ZOMBIES_PER_WAVE = 4; // Reduced from 3
-const ZOMBIES_PER_WAVE_INCREMENT = 0.5; // Reduced from 1
-const PUZZLE_INTERVAL = 15000;
-const MATH_BLOCK_INTERVAL = 10000;
-
-const FORMATION_COLS = 10;
-const FORMATION_SPACING_X = 5; // Reduced from 10
-const FORMATION_SPACING_Y = 5; // Reduced from 10
-const PLAYER_GAP = 3; // Increased from 2 to create a small visible gap
-
-const PLAYER_WIDTH = 15;
-const PLAYER_HEIGHT = 15;
-const FORMATION_ROWS = 3;
-
-const MAX_FORMATION_WIDTH = 12;
-
-const TOTAL_ZOMBIE_FRAMES = 8; // Adjust this based on the actual number of zombie frames
-const ZOMBIE_ANIMATION_FRAME_DURATION = 50; // milliseconds per frame (adjust for desired speed)
-
-const ZOMBIE_RADIUS = 7.5; // Half of the zombie width/height
-const ZOMBIE_REPULSION_FORCE = 0.2; // Adjust this value to control how strongly zombies repel each other
-
-const PLAYER_SPEED = 5; // Reduced from 10 to slow down left/right movement
-const BULLET_SPEED = 18; // Increased from 15 to 18
-const CLICK_TIMEOUT = 1000; // Reduced from 5000 to 1000 milliseconds (1 second)
-const SHOOT_DELAY_MIN = 200; // Increased from 50 to 200 milliseconds
-const SHOOT_DELAY_MAX = 500; // Increased from 300 to 500 milliseconds
-
-const ZOMBIE_MIN_SCALE = 1;
-const ZOMBIE_MAX_SCALE = 3; // Changed from 1.5 to 3
-
-const BULLET_DELAY = 50; // Milliseconds of delay before bullet becomes visible
-const PLAYER_SHOT_DELAY_MIN = 200; // Minimum delay between individual player shots (milliseconds)
-const PLAYER_SHOT_DELAY_MAX = 800; // Maximum delay between individual player shots (milliseconds)
-const VOLLEY_DURATION = 1000; // Duration over which all soldiers will fire (milliseconds)
-
 // Add these new interfaces to the top of the file
 interface Vector2D {
   x: number;
@@ -58,8 +18,133 @@ interface GameStateWithClick extends GameState {
   lastClickTime: number;
 }
 
-const MAX_SOUND_EFFECTS = 20;
-const SOUND_OVERLAP_THRESHOLD = 50; // milliseconds
+interface GameState {
+  // ... (existing properties)
+  bossZombie: BossZombie | null;
+}
+
+// Update the Zombie interface
+interface Zombie {
+  // ... (existing properties)
+  lastAttackTime: number;
+}
+
+// Update the BossZombie interface
+interface BossZombie extends Zombie {
+  // ... (existing properties)
+  playersEliminatedPerAttack: number;
+}
+
+interface GameState {
+  // ... (existing properties)
+  waveInterval: number;
+  lastWaveTime: number;
+}
+
+interface MathBlock {
+  operation: string;
+  value: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  lastHitTime: number;
+}
+
+// Add this interface
+interface SoundState {
+  singleLaserSound: Howl;
+  multipleLaserSound: Howl;
+  isLaserPlaying: boolean;
+}
+
+// Add this to your existing GameState interface
+interface GameState {
+  // ... (existing properties)
+  soundState: SoundState;
+}
+
+// Add this to your GameState interface if not already present
+interface GameState {
+  // ... (other properties)
+  isMultipleLaserPlaying: boolean;
+}
+
+interface MathBlock {
+  operation: string;
+  value: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  lastHitTime: number;
+  lastPositiveUpdateTime: number;
+  positiveUpdateCount: number;
+}
+
+interface BossZombie extends Zombie {
+  isActive: boolean;
+  maxHealth: number;
+  currentHealth: number;
+}
+
+
+const PADDING = 0.05; // 5% padding on each side
+const MATH_BLOCK_GAP = 0.2; // 20% gap between blocks
+const SHOOT_COOLDOWN = 700; // Increase cooldown to 700ms for even less frequent shooting
+const INITIAL_ZOMBIES_PER_WAVE = 5; // Reduced from 3
+const ZOMBIES_PER_WAVE_INCREMENT = 1.5; // Reduced from 1
+const MATH_BLOCK_INTERVAL = 10000;
+const PLAYER_GAP = 3; // Increased from 2 to create a small visible gap
+const PLAYER_WIDTH = 15;
+const PLAYER_HEIGHT = 15;
+const FORMATION_ROWS = 3;
+const MAX_FORMATION_WIDTH = 12;
+const TOTAL_ZOMBIE_FRAMES = 8; // Adjust this based on the actual number of zombie frames
+const ZOMBIE_ANIMATION_FRAME_DURATION = 50; // milliseconds per frame (adjust for desired speed)
+const ZOMBIE_RADIUS = 7.5; // Half of the zombie width/height
+const ZOMBIE_REPULSION_FORCE = 0.2; // Adjust this value to control how strongly zombies repel each other
+const PLAYER_SPEED = 5; // Reduced from 10 to slow down left/right movement
+const BULLET_SPEED = 18; // Increased from 15 to 18
+const CLICK_TIMEOUT = 1000; // Reduced from 5000 to 1000 milliseconds (1 second)
+const ZOMBIE_MIN_SCALE = 1;
+const ZOMBIE_MAX_SCALE = 3; // Changed from 1.5 to 3
+const BASE_ZOMBIE_SPEED = 0.8; // Adjust this value as needed
+const SPEED_INCREMENT_PER_WAVE = 0.05; // Adjust this value as needed
+const ANIMATION_FRAME_DURATION = 100; // milliseconds per frame
+const TOTAL_FRAMES = 15; // Assuming 15 frames for player animation
+const SHOOT_CHANCE_PER_PLAYER = 0.03; // Decrease chance to shoot to 3% per frame
+const INITIAL_BOSS_HEALTH = 15;
+const BOSS_HEALTH_INCREMENT = 3;
+const INITIAL_BOSS_SCALE = 2;
+const BOSS_SCALE_INCREMENT = 0.2;
+const BOSS_HEALTH_MULTIPLIER = 7; // Increase from 5 to 7 for more strength
+const BOSS_DAMAGE_MULTIPLIER = 6; // Increase from 5 to 6
+const ZOMBIE_ATTACK_COOLDOWN = 1000; // 1 second cooldown for regular zombies
+const BOSS_ATTACK_COOLDOWN = 1000; // 1 second cooldown for boss zombies
+const BOSS_PLAYERS_ELIMINATED_PER_ATTACK = 12; // Increase from 10 to 12
+const BOSS_SPAWN_INTERVAL = 20000; // 45 seconds between boss spawns (adjusted from 60000)
+const BOSS_SPEED = 0.8; // Slower speed for the boss
+const BOSS_WAVE_FREQUENCY = 2; // Boss appears every 2nd wave
+const FIRST_BOSS_WAVE = 2; // First boss appears after the 2nd wave
+const WAVE_DURATION = 10000; // 10 seconds per wave
+const INITIAL_MATH_BLOCK_VALUE_MIN = -5;
+const INITIAL_MATH_BLOCK_VALUE_MAX = -3;
+const MATH_BLOCK_VALUE_WAVE_MULTIPLIER = 1.15; // This will be used to scale the values for subsequent waves
+const MATH_BLOCK_SPEED = 1.5; // Adjust this value as needed for the desired speed
+const MAX_SINGLE_SOUND_PLAYERS = 6;
+const LASER_SINGLE_SOUND = '/audio/laser_single.mp3';
+const LASER_MULTIPLE_SOUND = '/audio/laser_multiple.mp3';
+const MAX_ZOMBIES_PER_WAVE = 50; // Maximum number of zombies per wave
+const PADDING_TOP = 40;
+const BOTTOM_PADDING = 40; // Add this constant if not already present
+const MATH_BLOCK_HIT_COOLDOWN_NEGATIVE = 30; // ms for negative values
+const MATH_BLOCK_HIT_COOLDOWN_POSITIVE = 150; // ms for positive values
+const MATH_BLOCK_VALUES = {
+  health: 80,  // Decreased from 100
+  damage: 15,  // Decreased from 20
+  points: 40   // Decreased from 50
+};
 
 let audioContext: AudioContext | null = null;
 let bulletSoundBuffer: AudioBuffer | null = null;
@@ -81,135 +166,6 @@ const initializeAudio = async () => {
   }
 };
 
-const playBulletSound = (audioContext: AudioContext | null, bulletSoundBuffer: AudioBuffer | null) => {
-  if (audioContext && bulletSoundBuffer) {
-    const source = audioContext.createBufferSource();
-    source.buffer = bulletSoundBuffer;
-    const gainNode = audioContext.createGain();
-    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
-    source.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    source.start();
-    console.log('Bullet sound played');
-  } else {
-    console.warn('Audio not initialized, context:', audioContext, 'buffer:', bulletSoundBuffer);
-  }
-};
-
-const BASE_ZOMBIE_SPEED = 0.5; // Adjust this value as needed
-const SPEED_INCREMENT_PER_WAVE = 0.1; // Adjust this value as needed
-
-const ANIMATION_FRAME_DURATION = 100; // milliseconds per frame
-const TOTAL_FRAMES = 15; // Assuming 15 frames for player animation
-
-// Update these constants at the top of the file
-const SHOOT_CHANCE_PER_PLAYER = 0.03; // Decrease chance to shoot to 3% per frame
-const MIN_SHOOT_INTERVAL = 500; // Minimum time between shots for a single player (in milliseconds)
-
-const MAX_SIMULTANEOUS_SOUNDS = 5;
-const SOUND_COOLDOWN = 50; // milliseconds
-const VOLUME_RANGE = 0.3; // Random volume adjustment range
-
-// Add this interface
-interface SoundEffect {
-  sound: Howl;
-  lastPlayedTime: number;
-}
-
-// Add this object to store our sound effects
-const soundEffects: { [key: string]: SoundEffect } = {
-  bulletImpact: {
-    sound: new Howl({
-      src: ['/audio/deserteagle.mp3'], // Updated path
-      volume: 0.5,
-    }),
-    lastPlayedTime: 0,
-  },
-  // Add more sound effects here as needed
-};
-
-// Add this function to play a sound with cooldown and randomization
-const playSoundWithCooldown = (soundName: string) => {
-  const currentTime = Date.now();
-  const sound = soundEffects[soundName];
-
-  if (currentTime - sound.lastPlayedTime > SOUND_COOLDOWN) {
-    const activeSounds = Howler._howls.filter(howl => howl.playing()).length;
-
-    if (activeSounds < MAX_SIMULTANEOUS_SOUNDS) {
-      const randomVolume = sound.sound.volume() + (Math.random() * VOLUME_RANGE - VOLUME_RANGE / 2);
-      const randomRate = 1 + (Math.random() * 0.2 - 0.1); // Random playback rate between 0.9 and 1.1
-
-      sound.sound.volume(Math.max(0, Math.min(1, randomVolume)));
-      sound.sound.rate(randomRate);
-      sound.sound.play();
-      sound.lastPlayedTime = currentTime;
-    }
-  }
-};
-
-// Add these constants at the top of the file
-const MAX_BULLET_SOUNDS_PER_SECOND = 20;
-const BULLET_SOUND_WINDOW = 1000; // 1 second in milliseconds
-
-// Add this to your existing interfaces or create a new one
-interface BulletSoundTracker {
-  lastSounds: number[];
-}
-
-// Add this near the top of your file, outside of any function
-let bulletSoundTracker: BulletSoundTracker = {
-  lastSounds: []
-};
-
-// Add these new interfaces and constants at the top of the file
-interface BossZombie extends Zombie {
-  isActive: boolean;
-  maxHealth: number;
-  currentHealth: number;
-}
-
-const BOSS_WAVE_INTERVAL = 5;
-const INITIAL_BOSS_HEALTH = 10;
-const BOSS_HEALTH_INCREMENT = 3;
-const INITIAL_BOSS_SCALE = 5;
-const BOSS_SCALE_INCREMENT = 0.5;
-
-// Add these constants at the top of the file
-const ZOMBIE_DAMAGE = 1;
-const INITIAL_BOSS_DAMAGE = 5;
-const BOSS_DAMAGE_INCREMENT = 2;
-
-// Add these constants near the top of the file with other constants
-const BOSS_HEALTH_MULTIPLIER = 7; // Increase from 5 to 7 for more strength
-const BOSS_DAMAGE_MULTIPLIER = 6; // Increase from 5 to 6
-
-// Modify the GameState interface to include boss zombie
-interface GameState {
-  // ... (existing properties)
-  bossZombie: BossZombie | null;
-}
-
-// Add these constants at the top of the file
-const ZOMBIE_ATTACK_COOLDOWN = 1000; // 1 second cooldown for regular zombies
-const BOSS_ATTACK_COOLDOWN = 1000; // 1 second cooldown for boss zombies
-const BOSS_PLAYERS_ELIMINATED_PER_ATTACK = 12; // Increase from 10 to 12
-
-// Update the Zombie interface
-interface Zombie {
-  // ... (existing properties)
-  lastAttackTime: number;
-}
-
-// Update the BossZombie interface
-interface BossZombie extends Zombie {
-  // ... (existing properties)
-  playersEliminatedPerAttack: number;
-}
-
-// Add this constant near the top of the file with other constants
-const ZOMBIE_SPAWN_Y_RANGE = -50; // Zombies will spawn up to 50 pixels above the canvas
-
 // Update the createZombie function signature to include gameSize
 export const createZombie = (wave: number, gameSize: GameSize): Zombie => {
   const baseSpeed = BASE_ZOMBIE_SPEED + (wave - 1) * SPEED_INCREMENT_PER_WAVE;
@@ -229,11 +185,7 @@ export const createZombie = (wave: number, gameSize: GameSize): Zombie => {
   };
 };
 
-// Add this constant
-const BOSS_SPAWN_INTERVAL = 20000; // 45 seconds between boss spawns (adjusted from 60000)
 
-// Add this constant
-const BOSS_SPEED = 0.5; // Slower speed for the boss
 
 // Update the createBossZombie function as well
 const createBossZombie = (bossWaveCount: number, gameSize: GameSize): BossZombie => ({
@@ -252,29 +204,7 @@ const createBossZombie = (bossWaveCount: number, gameSize: GameSize): BossZombie
   playersEliminatedPerAttack: (BOSS_PLAYERS_ELIMINATED_PER_ATTACK + (bossWaveCount - 1) * 4) * BOSS_DAMAGE_MULTIPLIER,
 });
 
-// Remove this line
-// const INITIAL_WAVE_INTERVAL = 20000; // 20 seconds between waves initially
-
-// Keep these constants
-const WAVE_INTERVAL_DECREASE_RATE = 0.9; // Increased from 0.95 (10% decrease instead of 5%)
-const MIN_WAVE_INTERVAL = 3000; // Decreased from 5000 (3 seconds minimum between waves)
-const WAVE_RAMP_UP_START = 3; // Wave number when difficulty starts to increase
-const MAX_WAVE_INTERVAL_DECREASE = 0.5; // Maximum decrease to 50% of original interval
-const BOTTOM_SPAWN_PROBABILITY_INCREMENT = 0.05; // 5% increase per wave after ramp-up
-
-// Modify the GameState interface to include these new properties
-interface GameState {
-  // ... (existing properties)
-  waveInterval: number;
-  lastWaveTime: number;
-}
-
-// Update these constants
-const BOSS_WAVE_FREQUENCY = 2; // Boss appears every 2nd wave
-const FIRST_BOSS_WAVE = 2; // First boss appears after the 2nd wave
-const WAVE_DURATION = 10000; // 30 seconds per wave
-
-// Modify this function to be a regular function instead of an exported one
+// Keep only this definition of resetGame
 const resetGame = (): GameState => {
   return {
     ...initialGameState,
@@ -282,15 +212,16 @@ const resetGame = (): GameState => {
     lastWaveTime: Date.now(),
     lastZombieSpawn: Date.now(),
     lastBossSpawn: Date.now(),
+    soundState: {
+      singleLaserSound: new Howl({ src: [LASER_SINGLE_SOUND], volume: 0.5 }),
+      multipleLaserSound: new Howl({ src: [LASER_MULTIPLE_SOUND], volume: 0.5, loop: true }),
+      isLaserPlaying: false
+    }
   };
 };
 
-// Add this constant near the top of the file with other constants
-const MAX_ZOMBIES_PER_WAVE = 20; // Maximum number of zombies per wave
-
-// Add these constants at the top of the file
-const PADDING_TOP = 40;
-const PADDING_BOTTOM = 20;
+// Add this constant
+const BULLET_TRAIL_LENGTH = 5; // Number of positions to keep in the trail
 
 // Modify the updateGame function
 const updateGame = (state: GameState, audioContext: AudioContext | null, bulletSoundBuffer: AudioBuffer | null, gameSize: GameSize): GameState => {
@@ -316,7 +247,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
     newPlayerY = Math.max(PADDING_TOP, newPlayerY - PLAYER_SPEED);
   }
   if (state.player.movingDown) {
-    newPlayerY = Math.min(gameSize.height - PLAYER_HEIGHT - PADDING_BOTTOM, newPlayerY + PLAYER_SPEED);
+    newPlayerY = Math.min(gameSize.height - PLAYER_HEIGHT - BOTTOM_PADDING, newPlayerY + PLAYER_SPEED);
   }
 
   // Calculate player formation based on the new position
@@ -350,7 +281,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
   const zombiesPerWave = Math.min(baseZombiesPerWave, MAX_ZOMBIES_PER_WAVE);
   const zombiesPerSecond = zombiesPerWave / (WAVE_DURATION / 1000);
   const timeSinceLastSpawn = currentTime - newState.lastZombieSpawn;
-  const zombiesToSpawnThisFrame = Math.random() < (zombiesPerSecond * timeSinceLastSpawn / 1000) ? 1 : 0;
+  const zombiesToSpawnThisFrame = Math.random() < (zombiesPerSecond * timeSinceLastSpawn / 1000) * 1.3 ? 1 : 0; // Decreased from 1.5 to 1.3
 
   // Spawn zombies
   if (zombiesToSpawnThisFrame > 0) {
@@ -360,7 +291,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
 
   // Boss zombie spawning logic
   if (newState.wave >= FIRST_BOSS_WAVE && 
-      newState.wave % BOSS_WAVE_FREQUENCY === 0 && 
+      newState.wave % BOSS_WAVE_FREQUENCY === 0 &&
       (!newState.bossZombie || !newState.bossZombie.isActive) &&
       currentTime - newState.lastBossSpawn > BOSS_SPAWN_INTERVAL) {
     const bossWaveCount = Math.floor((newState.wave - FIRST_BOSS_WAVE) / BOSS_WAVE_FREQUENCY) + 1;
@@ -369,8 +300,9 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
     console.log(`Boss zombie spawned at wave ${newState.wave}`);
   }
 
-  // Updated shooting logic (less frequent)
-  let bulletSoundsThisFrame = 0;
+  let playersShooting = 0;
+
+  // Updated shooting logic
   newState.playerFormation.forEach((player, index) => {
     if (currentTime - player.lastShot > SHOOT_COOLDOWN && Math.random() < SHOOT_CHANCE_PER_PLAYER) {
       let shootingDirection: Vector2D = { x: 0, y: -1 }; // Default direction (straight up)
@@ -402,25 +334,73 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
       newState.bullets.push(newBullet);
       newState.playerFormation[index] = { ...player, lastShot: currentTime };
 
-      // Play bullet sound for every shot, but limit to MAX_BULLET_SOUNDS_PER_SECOND
-      bulletSoundTracker.lastSounds = bulletSoundTracker.lastSounds.filter(time => currentTime - time < BULLET_SOUND_WINDOW);
-      if (bulletSoundTracker.lastSounds.length < MAX_BULLET_SOUNDS_PER_SECOND && bulletSoundsThisFrame < MAX_BULLET_SOUNDS_PER_SECOND) {
-        playBulletSound(audioContext, bulletSoundBuffer);
-        bulletSoundTracker.lastSounds.push(currentTime);
-        bulletSoundsThisFrame++;
-      }
+      playersShooting++;
     }
   });
 
-  // Update bullet positions and trails
+  // Sound logic
+  if (newState.playerCount > MAX_SINGLE_SOUND_PLAYERS) {
+    // More than 10 players, use multiple laser sound
+    if (!newState.isMultipleLaserPlaying) {
+      newState.soundState.multipleLaserSound.play();
+      newState.isMultipleLaserPlaying = true;
+      
+      // Set up the ended event to reset the flag when the sound finishes
+      newState.soundState.multipleLaserSound.once('end', () => {
+        newState.isMultipleLaserPlaying = false;
+      });
+    }
+  } else {
+    // 10 or fewer players, use single laser sound
+    if (playersShooting > 0) {
+      newState.soundState.singleLaserSound.play();
+    }
+    
+    // Stop multiple laser sound if it's playing and we now have 10 or fewer players
+    if (newState.isMultipleLaserPlaying) {
+      newState.soundState.multipleLaserSound.stop();
+      newState.isMultipleLaserPlaying = false;
+    }
+  }
+
+  // Update bullet positions and check for collisions
   newState.bullets = newState.bullets.filter(bullet => {
     // Add current position to trail
     bullet.trail.unshift({ x: bullet.x, y: bullet.y });
     // Limit trail length
-    if (bullet.trail.length > 10) {
+    if (bullet.trail.length > BULLET_TRAIL_LENGTH) {
       bullet.trail.pop();
     }
 
+    let bulletHit = false;
+
+    // Check for collisions with math blocks
+    if (newState.mathBlocks) {
+      newState.mathBlocks = newState.mathBlocks.map(block => {
+        if (!bulletHit && checkBulletMathBlockCollision(bullet, block)) {
+          bulletHit = true;
+          const cooldown = block.value >= 0 ? MATH_BLOCK_HIT_COOLDOWN_POSITIVE : MATH_BLOCK_HIT_COOLDOWN_NEGATIVE;
+          
+          if (currentTime - block.lastHitTime > cooldown) {
+            block.lastHitTime = currentTime;
+            block.value++;
+            if (block.value === 0) {
+              block.value = 1; // Skip 0 and change to positive
+              block.operation = '+';
+            }
+            // Apply points for hitting a math block
+            newState.score += MATH_BLOCK_VALUES.points;
+          }
+        }
+        return block;
+      });
+    }
+
+    if (bulletHit) {
+      return false; // Remove the bullet if it hit a math block
+    }
+
+    // Update bullet position
     bullet.x += bullet.direction.x * bullet.speed;
     bullet.y += bullet.direction.y * bullet.speed;
 
@@ -431,6 +411,32 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
     return (currentTime - bullet.creationTime < 5000) && // Remove after 5 seconds
            (bullet.y + bullet.height > 0) && (bullet.y < gameSize.height) &&
            (bullet.x + bullet.width > 0) && (bullet.x < gameSize.width);
+  });
+
+  // Check for collisions between bullets and zombies (including boss)
+  newState.bullets = newState.bullets.filter(bullet => {
+    let zombieHit = false;
+    newState.zombies = newState.zombies.filter(zombie => {
+      if (!zombieHit && checkCollisionWithZombie(bullet, zombie)) {
+        zombieHit = true;
+        newState.score += 10;
+        return false; // Remove the zombie that was hit
+      }
+      return true;
+    });
+
+    // Check collision with boss zombie
+    if (!zombieHit && newState.bossZombie && newState.bossZombie.isActive && checkCollisionWithZombie(bullet, newState.bossZombie)) {
+      zombieHit = true;
+      newState.bossZombie.currentHealth--;
+      newState.score += 20;
+      if (newState.bossZombie.currentHealth <= 0) {
+        newState.bossZombie.isActive = false;
+        newState.score += 1000; // Increased bonus score for defeating boss
+      }
+    }
+
+    return !zombieHit; // Remove the bullet if it hit a zombie or boss
   });
 
   // Update regular zombies and check for collisions with players
@@ -474,105 +480,106 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
     }
   }
 
-  // Recalculate player formation after potential player count change
-  newState.playerFormation = calculatePlayerFormation(newState.playerCount, newState.player.x, gameSize.height - PLAYER_HEIGHT - PADDING_BOTTOM, gameSize);
+  // Recalculate player formation based on current player count
+  newState.playerFormation = calculatePlayerFormation(newState.playerCount, newState.player.x, gameSize.height - PLAYER_HEIGHT - BOTTOM_PADDING, gameSize);
+
+  // Update main player position to match the first player in the formation
+  if (newState.playerFormation.length > 0) {
+    newState.player = {
+      ...newState.player,
+      x: newState.playerFormation[0].x,
+      y: newState.playerFormation[0].y,
+    };
+  }
 
   // Check if the game is over
   if (newState.playerCount <= 0) {
     newState.gameOver = true;
   }
 
-  // Check for collisions between bullets and zombies (including boss)
-  newState.bullets = newState.bullets.filter(bullet => {
-    let bulletHit = false;
-    newState.zombies = newState.zombies.filter(zombie => {
-      if (checkCollisionWithZombie(bullet, zombie)) {
-        bulletHit = true;
-        newState.score += 10;
-        return false; // Remove the zombie that was hit
-      }
-      return true;
-    });
-
-    // Check collision with boss zombie
-    if (!bulletHit && newState.bossZombie && newState.bossZombie.isActive && checkCollisionWithZombie(bullet, newState.bossZombie)) {
-      bulletHit = true;
-      newState.bossZombie.currentHealth--;
-      newState.score += 20;
-      if (newState.bossZombie.currentHealth <= 0) {
-        newState.bossZombie.isActive = false;
-        newState.score += 1000; // Increased bonus score for defeating boss
-      }
-    }
-
-    return !bulletHit; // Remove the bullet if it hit a zombie or boss
-  });
-
   // Spawn math blocks
   if (currentTime - newState.lastMathBlockSpawn > MATH_BLOCK_INTERVAL && !newState.mathBlocks) {
-    const operations = ['+', '-', '*', '/'];
-    const operation = operations[Math.floor(Math.random() * operations.length)];
-    let value: number;
-
-    switch (operation) {
-      case '+':
-      case '-':
-        value = Math.floor(Math.random() * 5) + 1; // Random value between 1 and 5
-        break;
-      case '*':
-        value = Math.floor(Math.random() * 2) + 2; // Random value between 2 and 3
-        break;
-      case '/':
-        value = Math.floor(Math.random() * 2) + 2; // Random value between 2 and 3
-        break;
-      default:
-        value = 1;
+    let value1, value2;
+    
+    if (newState.wave === 1) {
+      // For the first wave, use the initial range
+      value1 = Math.floor(Math.random() * (INITIAL_MATH_BLOCK_VALUE_MAX - INITIAL_MATH_BLOCK_VALUE_MIN + 1)) + INITIAL_MATH_BLOCK_VALUE_MIN;
+      value2 = Math.floor(Math.random() * (INITIAL_MATH_BLOCK_VALUE_MAX - INITIAL_MATH_BLOCK_VALUE_MIN + 1)) + INITIAL_MATH_BLOCK_VALUE_MIN;
+    } else {
+      // For subsequent waves, scale the values based on the wave number
+      const minValue = Math.floor(INITIAL_MATH_BLOCK_VALUE_MIN * Math.pow(MATH_BLOCK_VALUE_WAVE_MULTIPLIER, newState.wave - 1));
+      const maxValue = Math.floor(INITIAL_MATH_BLOCK_VALUE_MAX * Math.pow(MATH_BLOCK_VALUE_WAVE_MULTIPLIER, newState.wave - 1));
+      value1 = Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue;
+      value2 = Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue;
     }
-
+    
+    const blockWidth = (gameSize.width * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2;
+    const blockHeight = 60;
     const leftBlockX = gameSize.width * PADDING;
-    const rightBlockX = gameSize.width * (1 - PADDING) - (gameSize.width * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2;
+    const rightBlockX = gameSize.width * (1 - PADDING) - blockWidth;
 
     newState.mathBlocks = [
-      { operation, value, x: leftBlockX, y: 0, width: (gameSize.width * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2, height: 30 },
-      { operation: operation === '+' ? '-' : '+', value, x: rightBlockX, y: 0, width: (gameSize.width * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2, height: 30 }
+      { operation: '-', value: value1, x: leftBlockX, y: 0, width: blockWidth, height: blockHeight, lastHitTime: 0, lastPositiveUpdateTime: 0, positiveUpdateCount: 0 },
+      { operation: '-', value: value2, x: rightBlockX, y: 0, width: blockWidth, height: blockHeight, lastHitTime: 0, lastPositiveUpdateTime: 0, positiveUpdateCount: 0 }
     ];
     newState.lastMathBlockSpawn = currentTime;
   }
 
-  // Handle math block collisions
+  // Handle math block collisions and bullet hits
   if (newState.mathBlocks) {
-    let collision = false;
-    newState.mathBlocks = newState.mathBlocks.filter(block => {
-      block.y += 1; // Move down
+    const currentTime = Date.now();
+    newState.mathBlocks = newState.mathBlocks.map(block => {
+      block.y += MATH_BLOCK_SPEED;
 
       // Check for collision with any player in the formation
       for (let player of newState.playerFormation) {
         if (checkCollision(block, player)) {
-          collision = true;
           // Apply math operation
           const oldPlayerCount = newState.playerCount;
-          switch (block.operation) {
-            case '+':
-              newState.playerCount = oldPlayerCount + block.value;
-              break;
-            case '-':
-              newState.playerCount = Math.max(1, oldPlayerCount - block.value);
-              break;
-            case '*':
-              newState.playerCount = oldPlayerCount * block.value;
-              break;
-            case '/':
-              newState.playerCount = Math.max(1, Math.floor(oldPlayerCount / block.value));
-              break;
-          }
-          console.log(`Math operation: ${oldPlayerCount} ${block.operation} ${block.value} = ${newState.playerCount}`);
-          break; // Exit the loop after first collision
+          newState.playerCount = Math.max(1, oldPlayerCount + block.value);
+          console.log(`Math operation: ${oldPlayerCount} ${block.value >= 0 ? '+' : '-'} ${Math.abs(block.value)} = ${newState.playerCount}`);
+          return null; // Remove the block after collision
         }
       }
 
-      // Keep the block if it's still on screen and hasn't collided
-      return !collision && block.y <= gameSize.height;
+      return block;
+    }).filter(Boolean) as MathBlock[]; // Remove null blocks
+
+    // Check for bullet hits on math blocks
+    newState.bullets = newState.bullets.filter(bullet => {
+      let bulletHit = false;
+      newState.mathBlocks = newState.mathBlocks!.map(block => {
+        if (!bulletHit && checkBulletMathBlockCollision(bullet, block)) {
+          bulletHit = true;
+          const cooldown = block.value >= 0 ? MATH_BLOCK_HIT_COOLDOWN_POSITIVE : MATH_BLOCK_HIT_COOLDOWN_NEGATIVE;
+          
+          if (currentTime - block.lastHitTime > cooldown) {
+            block.lastHitTime = currentTime;
+            
+            if (block.value < 0) {
+              block.value++;
+            } else {
+              // For positive values, make it harder to increase
+              const incrementChance = Math.random();
+              const difficultyFactor = 1 + block.value / 5; // Adjusted difficulty factor
+              if (incrementChance < 1 / (block.value * difficultyFactor + 1)) {
+                block.value++;
+              }
+            }
+
+            if (block.value === 0) {
+              block.value = 1; // Skip 0 and change to positive
+              block.operation = '+';
+            }
+          }
+        }
+        return block;
+      });
+      return !bulletHit; // Remove the bullet if it hit a block
     });
+
+    // Remove math blocks that are off screen
+    newState.mathBlocks = newState.mathBlocks.filter(block => block.y <= gameSize.height);
 
     // If all blocks are removed, set mathBlocks to null
     if (newState.mathBlocks.length === 0) {
@@ -610,8 +617,8 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
 const checkCollision = (entity1: { x: number; y: number; width: number; height: number; scale?: number }, entity2: { x: number; y: number; width: number; height: number }) => {
   const e1Width = entity1.width * (entity1.scale || 1);
   const e1Height = entity1.height * (entity1.scale || 1);
-  const e1Left = entity1.x - e1Width / 2;
-  const e1Top = entity1.y - e1Height / 2;
+  const e1Left = entity1.x;
+  const e1Top = entity1.y;
 
   return (
     e1Left < entity2.x + entity2.width &&
@@ -633,34 +640,6 @@ const checkCollisionWithZombie = (bullet: Bullet, zombie: Zombie | BossZombie) =
   return checkCollision(bullet, zombieRect);
 };
 
-const generateMathPuzzle = (): MathPuzzle => {
-  const operations = ['+', '-', '*'];
-  const operation = operations[Math.floor(Math.random() * operations.length)];
-  const num1 = Math.floor(Math.random() * 10) + 1;
-  const num2 = Math.floor(Math.random() * 10) + 1;
-  let correctAnswer: number;
-
-  switch (operation) {
-    case '+':
-      correctAnswer = num1 + num2;
-      break;
-    case '-':
-      correctAnswer = num1 - num2;
-      break;
-    case '*':
-      correctAnswer = num1 * num2;
-      break;
-    default:
-      correctAnswer = 0; // This should never happen, but TypeScript requires it
-  }
-
-  return {
-    question: `${num1} ${operation} ${num2} = ?`,
-    correctAnswer,
-    userAnswer: null,
-  };
-};
-
 // Remove the 'export' keyword from here
 const handleCanvasClick = (state: GameState, clickX: number, clickY: number): GameState => {
   const newState = { ...state } as GameStateWithClick;
@@ -671,7 +650,7 @@ const handleCanvasClick = (state: GameState, clickX: number, clickY: number): Ga
 
 const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: number, gameSize: GameSize): Player[] => {
   const formation: Player[] = [];
-  const actualPlayerCount = Math.max(1, playerCount); // Ensure at least one player
+  const actualPlayerCount = Math.max(1, playerCount);
 
   let cols, rows;
 
@@ -689,7 +668,7 @@ const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: num
   const formationWidth = (cols - 1) * (PLAYER_WIDTH + PLAYER_GAP) + PLAYER_WIDTH;
   const formationHeight = (rows - 1) * (PLAYER_HEIGHT + PLAYER_GAP) + PLAYER_HEIGHT;
   const startX = Math.max(0, Math.min(baseX, gameSize.width - formationWidth));
-  const startY = Math.min(baseY, gameSize.height - formationHeight);
+  const startY = Math.min(baseY, gameSize.height - formationHeight - BOTTOM_PADDING);
 
   let remainingPlayers = actualPlayerCount;
 
@@ -738,17 +717,35 @@ const calculatePlayerFormation = (playerCount: number, baseX: number, baseY: num
 };
 
 const updateZombie = (zombie: Zombie | BossZombie, state: GameState, gameSize: GameSize): Zombie | BossZombie => {
-  const oldX = zombie.x;
-  const oldY = zombie.y;
+  // Find the closest player
+  if (state.playerFormation.length === 0) {
+    // If there are no players, move the zombie towards the center of the screen
+    const centerX = gameSize.width / 2;
+    const centerY = gameSize.height / 2;
+    const dx = centerX - zombie.x;
+    const dy = centerY - zombie.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 0) {
+      zombie.x += (dx / distance) * zombie.speed;
+      zombie.y += (dy / distance) * zombie.speed;
+    }
+  } else {
+    const closestPlayer = state.playerFormation.reduce((closest, player) => {
+      const distanceToPlayer = Math.sqrt(Math.pow(zombie.x - player.x, 2) + Math.pow(zombie.y - player.y, 2));
+      const distanceToClosest = Math.sqrt(Math.pow(zombie.x - closest.x, 2) + Math.pow(zombie.y - closest.y, 2));
+      return distanceToPlayer < distanceToClosest ? player : closest;
+    }, state.playerFormation[0]);
 
-  // Move towards the player
-  const dx = state.player.x - zombie.x;
-  const dy = state.player.y - zombie.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  
-  if (distance > 0) {
-    zombie.x += (dx / distance) * zombie.speed;
-    zombie.y += (dy / distance) * zombie.speed;
+    // Move towards the closest player
+    const dx = closestPlayer.x - zombie.x;
+    const dy = closestPlayer.y - zombie.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > 0) {
+      zombie.x += (dx / distance) * zombie.speed;
+      zombie.y += (dy / distance) * zombie.speed;
+    }
   }
 
   // Update zombie scale based on y position (only for regular zombies)
@@ -801,6 +798,17 @@ const updateZombie = (zombie: Zombie | BossZombie, state: GameState, gameSize: G
   zombie.lastAnimationUpdate = currentTime;
 
   return zombie;
+};
+
+// Improve the bullet-math block collision detection
+const checkBulletMathBlockCollision = (bullet: Bullet, block: MathBlock): boolean => {
+  // Check if any part of the bullet overlaps with the block
+  return (
+    bullet.x < block.x + block.width &&
+    bullet.x + bullet.width > block.x &&
+    bullet.y < block.y + block.height &&
+    bullet.y + bullet.height > block.y
+  );
 };
 
 // Update the export statement at the end of the file
