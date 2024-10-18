@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GameState, initialGameState } from '../utils/gameState';
-import { updateGame, handleCanvasClick as updateCanvasClick, initializeAudio, resetGame } from '../utils/updateGame';
+import { updateGame, handleCanvasClick as updateCanvasClick, initializeAudio, resetGame, pauseGameSounds, resumeGameSounds } from '../utils/updateGame';
 import { drawGame } from '../utils/drawGame';
 import { useGameLoop } from '../hooks/useGameLoop';
 import Crosshair from './crosshair/crosshair';
@@ -35,6 +35,7 @@ const Game: React.FC = () => {
   const [containerSize, setContainerSize] = useState({ width: DESKTOP_WIDTH, height: DESKTOP_HEIGHT });
   const [backgroundMusic, setBackgroundMusic] = useState<HTMLAudioElement | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isPulsing, setIsPulsing] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isShootingDirectionActive, setIsShootingDirectionActive] = useState(false);
 
@@ -162,17 +163,23 @@ const Game: React.FC = () => {
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && gameState.gameStarted && !gameState.gameOver) {
-        if (isPaused) {
-          resumeGame();
-        } else {
-          pauseGame();
-        }
+        setIsPaused(prev => !prev);
+        setIsPulsing(true);
+        setTimeout(() => setIsPulsing(false), 300); // Pulse effect duration
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [gameState.gameStarted, gameState.gameOver, isPaused, resumeGame, pauseGame]);
+  }, [gameState.gameStarted, gameState.gameOver]);
+
+  useEffect(() => {
+    if (isPaused) {
+      pauseGameSounds();
+    } else {
+      resumeGameSounds(gameState);
+    }
+  }, [isPaused, gameState]);
 
   const updateGameState = useCallback(() => {
     if (gameState.gameStarted && !gameState.gameOver && !isPaused) {
@@ -434,11 +441,11 @@ const Game: React.FC = () => {
         
         {/* Pause screen */}
         {isPaused && (
-          <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center z-30">
+          <div className={`absolute top-0 left-0 w-full h-full flex items-center justify-center z-30 ${isPulsing ? 'animate-pulse' : ''}`}>
             <div className="text-center bg-black bg-opacity-70 p-8 rounded-lg border-4 border-yellow-600 mx-4">
-              <h2 className="text-6xl font-bold text-yellow-600 mb-8 animate-pulse shadow-text">Game Paused</h2>
+              <h2 className="text-6xl font-bold text-yellow-600 mb-8 animate-pulse shadow-text">Game is paused</h2>
               <button
-                onClick={resumeGame}
+                onClick={() => setIsPaused(false)}
                 className="px-8 py-4 bg-gradient-to-b from-yellow-400 to-orange-500 text-red-900 text-2xl font-bold rounded-lg hover:from-yellow-300 hover:to-orange-400 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl relative overflow-hidden"
               >
                 <span className="relative z-10">Resume Game</span>

@@ -160,6 +160,9 @@ const BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE = 200; // Base cooldown for positive
 let audioContext: AudioContext | null = null;
 let bulletSoundBuffer: AudioBuffer | null = null;
 
+// Add this at the top of the file
+let multipleLaserSound: HTMLAudioElement | null = null;
+
 const initializeAudio = async () => {
   try {
     audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -353,27 +356,29 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
   if (newState.playerCount > MAX_SINGLE_SOUND_PLAYERS) {
     // More than MAX_SINGLE_SOUND_PLAYERS players, use multiple laser sound
     if (!newState.isMultipleLaserPlaying) {
-      const multipleSound = new Audio(LASER_MULTIPLE_SOUND);
-      multipleSound.loop = true;
-      multipleSound.volume = 0.5;
-      multipleSound.dataset.sound = 'shooting';
-      multipleSound.play().catch(error => console.error("Error playing multiple laser sound:", error));
+      if (!multipleLaserSound) {
+        multipleLaserSound = new Audio(LASER_MULTIPLE_SOUND);
+        multipleLaserSound.loop = true;
+        multipleLaserSound.volume = 0.5;
+      }
+      multipleLaserSound.play().catch(error => console.error("Error playing multiple laser sound:", error));
       newState.isMultipleLaserPlaying = true;
     }
   } else {
     // MAX_SINGLE_SOUND_PLAYERS or fewer players, use single laser sound
+    if (newState.isMultipleLaserPlaying) {
+      if (multipleLaserSound) {
+        multipleLaserSound.pause();
+        multipleLaserSound.currentTime = 0;
+      }
+      newState.isMultipleLaserPlaying = false;
+    }
+    
+    // Play single laser sound for each shooting player
     if (playersShooting > 0) {
       const singleSound = new Audio(LASER_SINGLE_SOUND);
       singleSound.volume = 0.5;
-      singleSound.dataset.sound = 'shooting';
       singleSound.play().catch(error => console.error("Error playing single laser sound:", error));
-    }
-    
-    // Stop multiple laser sound if it's playing and we now have MAX_SINGLE_SOUND_PLAYERS or fewer players
-    if (newState.isMultipleLaserPlaying) {
-      const multipleSounds = document.querySelectorAll('audio[data-sound="shooting"][src*="laser_multiple"]');
-      multipleSounds.forEach((sound: HTMLAudioElement) => sound.pause());
-      newState.isMultipleLaserPlaying = false;
     }
   }
 
@@ -845,6 +850,20 @@ const checkBulletMathBlockCollision = (bullet: Bullet, block: MathBlock): boolea
     bullet.y < block.y + block.height &&
     bullet.y + bullet.height > block.y
   );
+};
+
+export const pauseGameSounds = () => {
+  if (multipleLaserSound) {
+    multipleLaserSound.pause();
+  }
+  // Pause any other game sounds here if needed
+};
+
+export const resumeGameSounds = (state: GameState) => {
+  if (state.isMultipleLaserPlaying && multipleLaserSound) {
+    multipleLaserSound.play().catch(error => console.error("Error resuming multiple laser sound:", error));
+  }
+  // Resume any other game sounds here if needed
 };
 
 export { initializeAudio, updateGame, handleCanvasClick, resetGame };
