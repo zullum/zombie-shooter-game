@@ -6,6 +6,7 @@ import { updateGame, handleCanvasClick as updateCanvasClick, initializeAudio, re
 import { drawGame } from '../utils/drawGame';
 import { useGameLoop } from '../hooks/useGameLoop';
 import Crosshair from './crosshair/crosshair';
+import styles from './Game.module.css'; // If you're using CSS modules
 
 const AUDIO_INIT_TIMEOUT = 30000; // Increased to 30 seconds
 const AUDIO_INIT_RETRY_INTERVAL = 5000; // Retry every 5 seconds
@@ -264,13 +265,11 @@ const Game: React.FC = () => {
     const container = containerRef.current;
     if (container) {
       const rect = container.getBoundingClientRect();
-      const scaleX = gameSize.width / rect.width;
-      const scaleY = gameSize.height / rect.height;
-      const x = (event.clientX - rect.left) * scaleX;
-      const y = (event.clientY - rect.top) * scaleY;
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
       setMousePosition({ x, y });
     }
-  }, [gameSize]);
+  }, []);
 
   const handleClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const container = containerRef.current;
@@ -341,22 +340,23 @@ const Game: React.FC = () => {
     }
   }, [gameState.gameStarted, gameState.gameOver]);
 
+
   return (
     <div 
       className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden"
-      onMouseMove={handleMouseMove}
-      onClick={handleClick}
-      style={{ cursor: 'none' }} // Hide the default cursor on all screens
+      onClick={handleClick} // Add this line to handle clicks on the entire game area
     >
       <div 
         ref={containerRef} 
-        className="relative bg-gray-800"
+        className={`relative ${styles.gameContainer}`}
         style={{
           width: `${containerSize.width}px`,
           height: `${containerSize.height}px`,
           maxWidth: '100vw',
           maxHeight: '100vh',
+          cursor: 'none', // Hide the default cursor
         }}
+        onMouseMove={handleMouseMove}
       >
         {/* Background video */}
         {(!gameState.gameStarted || gameState.gameOver) && (
@@ -373,24 +373,29 @@ const Game: React.FC = () => {
           </video>
         )}
         
-        {/* Game canvas */}
+        {/* Game background and canvas */}
         {gameState.gameStarted && !gameState.gameOver && (
-          <canvas
-            ref={canvasRef}
-            className="absolute top-0 left-0 w-full h-full z-20 border border-white"
-            width={gameSize.width}
-            height={gameSize.height}
-          />
+          <>
+            <div className={styles.gameBackground}></div>
+            <canvas
+              ref={canvasRef}
+              className={styles.gameCanvas}
+              width={gameSize.width}
+              height={gameSize.height}
+            />
+          </>
         )}
         
-        {/* Crosshair - now visible on all screens */}
+        {/* Crosshair */}
         <Crosshair 
-          isActive={isShootingDirectionActive && gameState.gameStarted && !gameState.gameOver && !isPaused}
+          isActive={isShootingDirectionActive}
           style={{
+            position: 'absolute',
             left: `${mousePosition.x}px`,
             top: `${mousePosition.y}px`,
             transform: 'translate(-50%, -50%)',
-            zIndex: 30,
+            zIndex: 1000,
+            pointerEvents: 'none',
           }}
         />
         
