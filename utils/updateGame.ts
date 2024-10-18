@@ -80,6 +80,7 @@ interface MathBlock {
   lastHitTime: number;
   lastPositiveUpdateTime: number;
   positiveUpdateCount: number;
+  positiveIncrements: number;
 }
 
 interface BossZombie extends Zombie {
@@ -88,6 +89,8 @@ interface BossZombie extends Zombie {
   currentHealth: number;
 }
 
+// Add this constant near the top of the file with other constants
+const MAX_MATH_BLOCKS = 3; // Maximum number of math blocks on screen at once
 
 const PADDING = 0.05; // 5% padding on each side
 const MATH_BLOCK_GAP = 0.2; // 20% gap between blocks
@@ -131,7 +134,7 @@ const WAVE_DURATION = 10000; // 10 seconds per wave
 const INITIAL_MATH_BLOCK_VALUE_MIN = -5;
 const INITIAL_MATH_BLOCK_VALUE_MAX = -3;
 const MATH_BLOCK_VALUE_WAVE_MULTIPLIER = 1.15; // This will be used to scale the values for subsequent waves
-const MATH_BLOCK_SPEED = 1.5; // Adjust this value as needed for the desired speed
+const MATH_BLOCK_SPEED = 1.2; // Adjust this value as needed for the desired speed
 const MAX_SINGLE_SOUND_PLAYERS = 6;
 const LASER_SINGLE_SOUND = '/audio/laser_single.mp3';
 const LASER_MULTIPLE_SOUND = '/audio/laser_multiple.mp3';
@@ -146,34 +149,35 @@ const MATH_BLOCK_VALUES = {
   points: 40   // Decreased from 50
 };
 
+// Add these constants at the top of the file
+const MAX_NEGATIVE_VALUE = -100;
+const MAX_NEGATIVE_RANGE_START = -100;
+const MAX_NEGATIVE_RANGE_END = -80;
+
+// Add this constant at the top of the file
+const BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE = 200; // Base cooldown for positive blocks in milliseconds
+
 let audioContext: AudioContext | null = null;
 let bulletSoundBuffer: AudioBuffer | null = null;
 
-// Remove the export from the function declaration
 const initializeAudio = async () => {
   try {
     audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    console.log('Audio context created:', audioContext);
     const response = await fetch('/audio/bullet_impact.mp3');
-    console.log('Fetch response:', response);
     const arrayBuffer = await response.arrayBuffer();
-    console.log('Array buffer loaded, size:', arrayBuffer.byteLength);
     bulletSoundBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    console.log('Audio buffer decoded:', bulletSoundBuffer);
-    console.log('Audio initialized successfully');
   } catch (error) {
     console.error('Failed to initialize audio:', error);
   }
 };
 
-// Update the createZombie function signature to include gameSize
 export const createZombie = (wave: number, gameSize: GameSize): Zombie => {
   const baseSpeed = BASE_ZOMBIE_SPEED + (wave - 1) * SPEED_INCREMENT_PER_WAVE;
-  const speedVariation = baseSpeed * 0.2; // 20% speed variation
+  const speedVariation = baseSpeed * 0.2;
 
   return {
     x: Math.random() * gameSize.width,
-    y: -20, // Spawn above the canvas
+    y: -20,
     width: 15,
     height: 15,
     speed: baseSpeed + (Math.random() * 2 - 1) * speedVariation,
@@ -181,18 +185,15 @@ export const createZombie = (wave: number, gameSize: GameSize): Zombie => {
     lastAnimationUpdate: 0,
     scale: ZOMBIE_MIN_SCALE,
     lastAttackTime: 0,
-    health: 1 + Math.floor(wave / 5), // Increase health every 5 waves
+    health: 1 + Math.floor(wave / 5),
   };
 };
 
-
-
-// Update the createBossZombie function as well
 const createBossZombie = (bossWaveCount: number, gameSize: GameSize): BossZombie => ({
   x: gameSize.width / 2,
-  y: -50, // Spawn above the canvas
-  width: 30, // Increase width
-  height: 30, // Increase height
+  y: -50,
+  width: 30,
+  height: 30,
   speed: BOSS_SPEED,
   currentFrame: 0,
   lastAnimationUpdate: 0,
@@ -204,7 +205,6 @@ const createBossZombie = (bossWaveCount: number, gameSize: GameSize): BossZombie
   playersEliminatedPerAttack: (BOSS_PLAYERS_ELIMINATED_PER_ATTACK + (bossWaveCount - 1) * 4) * BOSS_DAMAGE_MULTIPLIER,
 });
 
-// Keep only this definition of resetGame
 const resetGame = (): GameState => {
   return {
     ...initialGameState,
@@ -220,10 +220,12 @@ const resetGame = (): GameState => {
   };
 };
 
-// Add this constant
 const BULLET_TRAIL_LENGTH = 5; // Number of positions to keep in the trail
 
-// Modify the updateGame function
+// Add these constants
+const MATH_BLOCK_SPAWN_INTERVAL = 5000; // 5 seconds between spawn attempts
+const MATH_BLOCK_SPAWN_CHANCE = 0.5; // 50% chance to spawn when the interval is reached
+
 const updateGame = (state: GameState, audioContext: AudioContext | null, bulletSoundBuffer: AudioBuffer | null, gameSize: GameSize): GameState => {
   if (!state.gameStarted || state.gameOver) return state;
 
@@ -272,7 +274,6 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
   if (currentTime - newState.lastWaveTime > WAVE_DURATION) {
     newState.wave++;
     newState.lastWaveTime = currentTime;
-    console.log(`Wave ${newState.wave} started`);
   }
 
   // Calculate zombies to spawn this frame
@@ -297,7 +298,6 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
     const bossWaveCount = Math.floor((newState.wave - FIRST_BOSS_WAVE) / BOSS_WAVE_FREQUENCY) + 1;
     newState.bossZombie = createBossZombie(bossWaveCount, gameSize);
     newState.lastBossSpawn = currentTime;
-    console.log(`Boss zombie spawned at wave ${newState.wave}`);
   }
 
   let playersShooting = 0;
@@ -307,7 +307,7 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
     if (currentTime - player.lastShot > SHOOT_COOLDOWN && Math.random() < SHOOT_CHANCE_PER_PLAYER) {
       let shootingDirection: Vector2D = { x: 0, y: -1 }; // Default direction (straight up)
 
-      // Determine shooting direction based on last click or default to upward
+      // Determine shooting direction based on last click or default to upward with randomness
       if (newState.lastClickPosition && currentTime - newState.lastClickTime < CLICK_TIMEOUT) {
         const dx = newState.lastClickPosition.x - player.x;
         const dy = newState.lastClickPosition.y - player.y;
@@ -316,6 +316,17 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
           x: dx / magnitude,
           y: dy / magnitude
         };
+      } else {
+        // Add randomness to vertical shots
+        const randomOffset = (Math.random() * 0.2) - 0.1; // Random value between -0.1 and 0.1
+        shootingDirection = {
+          x: randomOffset,
+          y: -1
+        };
+        // Normalize the direction vector
+        const magnitude = Math.sqrt(shootingDirection.x * shootingDirection.x + shootingDirection.y * shootingDirection.y);
+        shootingDirection.x /= magnitude;
+        shootingDirection.y /= magnitude;
       }
 
       const newBullet = {
@@ -340,25 +351,28 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
 
   // Sound logic
   if (newState.playerCount > MAX_SINGLE_SOUND_PLAYERS) {
-    // More than 10 players, use multiple laser sound
+    // More than MAX_SINGLE_SOUND_PLAYERS players, use multiple laser sound
     if (!newState.isMultipleLaserPlaying) {
-      newState.soundState.multipleLaserSound.play();
+      const multipleSound = new Audio(LASER_MULTIPLE_SOUND);
+      multipleSound.loop = true;
+      multipleSound.volume = 0.5;
+      multipleSound.dataset.sound = 'shooting';
+      multipleSound.play().catch(error => console.error("Error playing multiple laser sound:", error));
       newState.isMultipleLaserPlaying = true;
-      
-      // Set up the ended event to reset the flag when the sound finishes
-      newState.soundState.multipleLaserSound.once('end', () => {
-        newState.isMultipleLaserPlaying = false;
-      });
     }
   } else {
-    // 10 or fewer players, use single laser sound
+    // MAX_SINGLE_SOUND_PLAYERS or fewer players, use single laser sound
     if (playersShooting > 0) {
-      newState.soundState.singleLaserSound.play();
+      const singleSound = new Audio(LASER_SINGLE_SOUND);
+      singleSound.volume = 0.5;
+      singleSound.dataset.sound = 'shooting';
+      singleSound.play().catch(error => console.error("Error playing single laser sound:", error));
     }
     
-    // Stop multiple laser sound if it's playing and we now have 10 or fewer players
+    // Stop multiple laser sound if it's playing and we now have MAX_SINGLE_SOUND_PLAYERS or fewer players
     if (newState.isMultipleLaserPlaying) {
-      newState.soundState.multipleLaserSound.stop();
+      const multipleSounds = document.querySelectorAll('audio[data-sound="shooting"][src*="laser_multiple"]');
+      multipleSounds.forEach((sound: HTMLAudioElement) => sound.pause());
       newState.isMultipleLaserPlaying = false;
     }
   }
@@ -379,15 +393,27 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
       newState.mathBlocks = newState.mathBlocks.map(block => {
         if (!bulletHit && checkBulletMathBlockCollision(bullet, block)) {
           bulletHit = true;
-          const cooldown = block.value >= 0 ? MATH_BLOCK_HIT_COOLDOWN_POSITIVE : MATH_BLOCK_HIT_COOLDOWN_NEGATIVE;
+          const cooldown = block.value >= 0 
+            ? BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE * Math.pow(2, block.positiveIncrements)
+            : MATH_BLOCK_HIT_COOLDOWN_NEGATIVE;
           
           if (currentTime - block.lastHitTime > cooldown) {
             block.lastHitTime = currentTime;
-            block.value++;
+            
+            if (block.value < 0) {
+              block.value++;
+            } else {
+              // For positive values, always increment
+              block.value++;
+              block.positiveIncrements++;
+            }
+
             if (block.value === 0) {
               block.value = 1; // Skip 0 and change to positive
               block.operation = '+';
+              block.positiveIncrements = 0; // Reset the counter when transitioning to positive
             }
+
             // Apply points for hitting a math block
             newState.score += MATH_BLOCK_VALUES.points;
           }
@@ -498,36 +524,52 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
   }
 
   // Spawn math blocks
-  if (currentTime - newState.lastMathBlockSpawn > MATH_BLOCK_INTERVAL && !newState.mathBlocks) {
-    let value1, value2;
-    
+  if (!newState.mathBlocks) {
+    newState.mathBlocks = [];
+  }
+
+  if (newState.mathBlocks.length < MAX_MATH_BLOCKS && 
+      currentTime - newState.lastMathBlockSpawn > MATH_BLOCK_SPAWN_INTERVAL &&
+      Math.random() < MATH_BLOCK_SPAWN_CHANCE) {
+    let value;
     if (newState.wave === 1) {
       // For the first wave, use the initial range
-      value1 = Math.floor(Math.random() * (INITIAL_MATH_BLOCK_VALUE_MAX - INITIAL_MATH_BLOCK_VALUE_MIN + 1)) + INITIAL_MATH_BLOCK_VALUE_MIN;
-      value2 = Math.floor(Math.random() * (INITIAL_MATH_BLOCK_VALUE_MAX - INITIAL_MATH_BLOCK_VALUE_MIN + 1)) + INITIAL_MATH_BLOCK_VALUE_MIN;
+      value = Math.floor(Math.random() * (INITIAL_MATH_BLOCK_VALUE_MAX - INITIAL_MATH_BLOCK_VALUE_MIN + 1)) + INITIAL_MATH_BLOCK_VALUE_MIN;
     } else {
-      // For subsequent waves, scale the values based on the wave number
-      const minValue = Math.floor(INITIAL_MATH_BLOCK_VALUE_MIN * Math.pow(MATH_BLOCK_VALUE_WAVE_MULTIPLIER, newState.wave - 1));
-      const maxValue = Math.floor(INITIAL_MATH_BLOCK_VALUE_MAX * Math.pow(MATH_BLOCK_VALUE_WAVE_MULTIPLIER, newState.wave - 1));
-      value1 = Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue;
-      value2 = Math.floor(Math.random() * (maxValue - minValue + 1)) + minValue;
+      // Calculate value based on wave number
+      const baseValue = INITIAL_MATH_BLOCK_VALUE_MIN * Math.pow(MATH_BLOCK_VALUE_WAVE_MULTIPLIER, newState.wave - 1);
+      
+      // Check if the baseValue has reached the threshold
+      if (baseValue <= MAX_NEGATIVE_VALUE) {
+        // Generate a random value between MAX_NEGATIVE_RANGE_START and MAX_NEGATIVE_RANGE_END
+        value = Math.floor(Math.random() * (MAX_NEGATIVE_RANGE_END - MAX_NEGATIVE_RANGE_START + 1)) + MAX_NEGATIVE_RANGE_START;
+      } else {
+        value = Math.floor(baseValue);
+      }
     }
-    
-    const blockWidth = (gameSize.width * (1 - 2 * PADDING - MATH_BLOCK_GAP)) / 2;
-    const blockHeight = 60;
-    const leftBlockX = gameSize.width * PADDING;
-    const rightBlockX = gameSize.width * (1 - PADDING) - blockWidth;
 
-    newState.mathBlocks = [
-      { operation: '-', value: value1, x: leftBlockX, y: 0, width: blockWidth, height: blockHeight, lastHitTime: 0, lastPositiveUpdateTime: 0, positiveUpdateCount: 0 },
-      { operation: '-', value: value2, x: rightBlockX, y: 0, width: blockWidth, height: blockHeight, lastHitTime: 0, lastPositiveUpdateTime: 0, positiveUpdateCount: 0 }
-    ];
+    const blockWidth = (gameSize.width * (1 - 2 * PADDING)) / 2;
+    const blockHeight = 60;
+    const isLeftSide = Math.random() < 0.5;
+    const blockX = isLeftSide ? gameSize.width * PADDING : gameSize.width * (1 - PADDING) - blockWidth;
+
+    newState.mathBlocks.push({
+      operation: '-',
+      value: value,
+      x: blockX,
+      y: 0,
+      width: blockWidth,
+      height: blockHeight,
+      lastHitTime: 0,
+      lastPositiveUpdateTime: 0,
+      positiveUpdateCount: 0,
+      positiveIncrements: 0,
+    });
     newState.lastMathBlockSpawn = currentTime;
   }
 
-  // Handle math block collisions and bullet hits
+  // Handle math block movement, collisions, and bullet hits
   if (newState.mathBlocks) {
-    const currentTime = Date.now();
     newState.mathBlocks = newState.mathBlocks.map(block => {
       block.y += MATH_BLOCK_SPEED;
 
@@ -537,7 +579,6 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
           // Apply math operation
           const oldPlayerCount = newState.playerCount;
           newState.playerCount = Math.max(1, oldPlayerCount + block.value);
-          console.log(`Math operation: ${oldPlayerCount} ${block.value >= 0 ? '+' : '-'} ${Math.abs(block.value)} = ${newState.playerCount}`);
           return null; // Remove the block after collision
         }
       }
@@ -551,7 +592,10 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
       newState.mathBlocks = newState.mathBlocks!.map(block => {
         if (!bulletHit && checkBulletMathBlockCollision(bullet, block)) {
           bulletHit = true;
-          const cooldown = block.value >= 0 ? MATH_BLOCK_HIT_COOLDOWN_POSITIVE : MATH_BLOCK_HIT_COOLDOWN_NEGATIVE;
+          const currentTime = Date.now();
+          const cooldown = block.value >= 0 
+            ? BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE * Math.pow(2, block.positiveIncrements)
+            : MATH_BLOCK_HIT_COOLDOWN_NEGATIVE;
           
           if (currentTime - block.lastHitTime > cooldown) {
             block.lastHitTime = currentTime;
@@ -559,18 +603,19 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
             if (block.value < 0) {
               block.value++;
             } else {
-              // For positive values, make it harder to increase
-              const incrementChance = Math.random();
-              const difficultyFactor = 1 + block.value / 5; // Adjusted difficulty factor
-              if (incrementChance < 1 / (block.value * difficultyFactor + 1)) {
-                block.value++;
-              }
+              // For positive values, always increment
+              block.value++;
+              block.positiveIncrements++;
             }
 
             if (block.value === 0) {
               block.value = 1; // Skip 0 and change to positive
               block.operation = '+';
+              block.positiveIncrements = 0; // Reset the counter when transitioning to positive
             }
+
+            // Apply points for hitting a math block
+            newState.score += MATH_BLOCK_VALUES.points;
           }
         }
         return block;
@@ -580,11 +625,6 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
 
     // Remove math blocks that are off screen
     newState.mathBlocks = newState.mathBlocks.filter(block => block.y <= gameSize.height);
-
-    // If all blocks are removed, set mathBlocks to null
-    if (newState.mathBlocks.length === 0) {
-      newState.mathBlocks = null;
-    }
   }
 
   // Update player animation
@@ -613,7 +653,6 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
   return newState;
 };
 
-// Update the existing checkCollision function to handle both rectangles and circles
 const checkCollision = (entity1: { x: number; y: number; width: number; height: number; scale?: number }, entity2: { x: number; y: number; width: number; height: number }) => {
   const e1Width = entity1.width * (entity1.scale || 1);
   const e1Height = entity1.height * (entity1.scale || 1);
@@ -640,7 +679,6 @@ const checkCollisionWithZombie = (bullet: Bullet, zombie: Zombie | BossZombie) =
   return checkCollision(bullet, zombieRect);
 };
 
-// Remove the 'export' keyword from here
 const handleCanvasClick = (state: GameState, clickX: number, clickY: number): GameState => {
   const newState = { ...state } as GameStateWithClick;
   newState.lastClickPosition = { x: clickX, y: clickY };
@@ -800,9 +838,7 @@ const updateZombie = (zombie: Zombie | BossZombie, state: GameState, gameSize: G
   return zombie;
 };
 
-// Improve the bullet-math block collision detection
 const checkBulletMathBlockCollision = (bullet: Bullet, block: MathBlock): boolean => {
-  // Check if any part of the bullet overlaps with the block
   return (
     bullet.x < block.x + block.width &&
     bullet.x + bullet.width > block.x &&
@@ -811,5 +847,4 @@ const checkBulletMathBlockCollision = (bullet: Bullet, block: MathBlock): boolea
   );
 };
 
-// Update the export statement at the end of the file
 export { initializeAudio, updateGame, handleCanvasClick, resetGame };
