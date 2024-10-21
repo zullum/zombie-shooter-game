@@ -77,6 +77,7 @@ export interface GameState {
   lastBossSpawn: number;
   gameSize: GameSize;
   isMultipleLaserPlaying: boolean;
+  isPaused: boolean;
 }
 
 export interface MathPuzzle {
@@ -133,6 +134,7 @@ export const initialGameState: GameState = {
   lastBossSpawn: 0,
   gameSize: { width: 540, height: 960 }, // Default size, will be updated in the Game component
   isMultipleLaserPlaying: false,
+  isPaused: false,
 };
 
 const PADDING = 0.2; // 20% padding
