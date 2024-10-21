@@ -94,7 +94,7 @@ const MAX_MATH_BLOCKS = 3; // Maximum number of math blocks on screen at once
 
 const PADDING = 0.05; // 5% padding on each side
 const SHOOT_COOLDOWN = 700; // Increase cooldown to 700ms for even less frequent shooting
-const INITIAL_ZOMBIES_PER_WAVE = 5; // Reduced from 3
+const INITIAL_ZOMBIES_PER_WAVE = 20; // Reduced from 3
 const ZOMBIES_PER_WAVE_INCREMENT = 1.5; // Reduced from 1
 const PLAYER_GAP = 3; // Increased from 2 to create a small visible gap
 const PLAYER_WIDTH = 15;
@@ -119,7 +119,7 @@ const INITIAL_BOSS_HEALTH = 15;
 const BOSS_HEALTH_INCREMENT = 3;
 const INITIAL_BOSS_SCALE = 2;
 const BOSS_SCALE_INCREMENT = 0.2;
-const BOSS_HEALTH_MULTIPLIER = 8; // Increase from 5 to 7 for more strength
+const BOSS_HEALTH_MULTIPLIER = 10; // Increase from 5 to 7 for more strength
 const BOSS_DAMAGE_MULTIPLIER = 6; // Increase from 5 to 6
 const ZOMBIE_ATTACK_COOLDOWN = 1000; // 1 second cooldown for regular zombies
 const BOSS_ATTACK_COOLDOWN = 1000; // 1 second cooldown for boss zombies
@@ -131,7 +131,7 @@ const FIRST_BOSS_WAVE = 2; // First boss appears after the 2nd wave
 const WAVE_DURATION = 10000; // 10 seconds per wave
 const INITIAL_MATH_BLOCK_VALUE_MIN = -5;
 const INITIAL_MATH_BLOCK_VALUE_MAX = -3;
-const MATH_BLOCK_VALUE_WAVE_MULTIPLIER = 1.15; // This will be used to scale the values for subsequent waves
+const MATH_BLOCK_VALUE_WAVE_MULTIPLIER = 1.3; // This will be used to scale the values for subsequent waves
 const MATH_BLOCK_SPEED = 1.2; // Base speed
 const MATH_BLOCK_SPEED_INCREMENT = 0.01; // 1% increase per wave
 const MAX_SINGLE_SOUND_PLAYERS = 6;
@@ -150,8 +150,8 @@ const MATH_BLOCK_VALUES = {
 
 // Add these constants at the top of the file
 const MAX_NEGATIVE_VALUE = -100;
-const MAX_NEGATIVE_RANGE_START = -100;
-const MAX_NEGATIVE_RANGE_END = -80;
+const MAX_NEGATIVE_RANGE_START = -150;
+const MAX_NEGATIVE_RANGE_END = -100;
 
 // Add this constant at the top of the file
 const BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE = 300; // Base cooldown for positive blocks in milliseconds
