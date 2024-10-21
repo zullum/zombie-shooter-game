@@ -20,6 +20,7 @@ const PADDING_BOTTOM = 20; // Padding for the bottom area
 
 const CLICK_TIMEOUT = 1000; // 1 second cooldown for shooting direction
 
+const SWIPE_SPEED_MULTIPLIER = 0.5; // Reduced from 2 to 0.5 for more controlled movement
 
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -351,18 +352,22 @@ const Game: React.FC = () => {
   const handleTouchMove = useCallback((event: React.TouchEvent) => {
     if (isTouching) {
       const touchX = event.touches[0].clientX;
-      const deltaX = touchX - touchStartX;
-      setGameState(prevState => ({
-        ...prevState,
-        player: {
-          ...prevState.player,
-          movingLeft: deltaX < 0,
-          movingRight: deltaX > 0,
-        },
-      }));
+      const deltaX = (touchX - touchStartX) * SWIPE_SPEED_MULTIPLIER;
+      setGameState(prevState => {
+        const newX = Math.max(0, Math.min(gameSize.width - prevState.player.width, prevState.player.x + deltaX));
+        return {
+          ...prevState,
+          player: {
+            ...prevState.player,
+            x: newX,
+            movingLeft: deltaX < 0,
+            movingRight: deltaX > 0,
+          },
+        };
+      });
       setTouchStartX(touchX);
     }
-  }, [isTouching, touchStartX]);
+  }, [isTouching, touchStartX, gameSize.width]);
 
   const handleTouchEnd = useCallback(() => {
     setIsTouching(false);
@@ -378,32 +383,39 @@ const Game: React.FC = () => {
 
   const handleTap = useCallback((event: React.TouchEvent) => {
     const container = containerRef.current;
-    if (container) {
+    if (container && gameState.gameStarted && !gameState.gameOver && !isPaused) {
       const rect = container.getBoundingClientRect();
       const scaleX = gameSize.width / rect.width;
       const scaleY = gameSize.height / rect.height;
       const x = (event.touches[0].clientX - rect.left) * scaleX;
       const y = (event.touches[0].clientY - rect.top) * scaleY;
 
-      if (gameState.gameStarted && !gameState.gameOver && !isPaused) {
-        setGameState(prevState => updateCanvasClick(prevState, x, y));
-        setIsShootingDirectionActive(true);
-        setTimeout(() => setIsShootingDirectionActive(false), CLICK_TIMEOUT);
-      }
+      setGameState(prevState => updateCanvasClick(prevState, x, y));
+      setIsShootingDirectionActive(true);
+      setTimeout(() => setIsShootingDirectionActive(false), CLICK_TIMEOUT);
     }
   }, [gameState.gameStarted, gameState.gameOver, isPaused, gameSize]);
 
   const swipeHandlers = useSwipeable({
-    onSwipedLeft: () => setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: true, movingRight: false } })),
-    onSwipedRight: () => setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: false, movingRight: true } })),
     onSwiping: (eventData) => {
-      if (eventData.dir === 'Left') {
-        setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: true, movingRight: false } }));
-      } else if (eventData.dir === 'Right') {
-        setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: false, movingRight: true } }));
-      }
+      const deltaX = eventData.deltaX * SWIPE_SPEED_MULTIPLIER;
+      setGameState(prevState => {
+        const newX = Math.max(0, Math.min(gameSize.width - prevState.player.width, prevState.player.x + deltaX));
+        return {
+          ...prevState,
+          player: {
+            ...prevState.player,
+            x: newX,
+            movingLeft: deltaX < 0,
+            movingRight: deltaX > 0,
+          },
+        };
+      });
     },
-    onSwiped: () => setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: false, movingRight: false } })),
+    onSwiped: () => setGameState(prevState => ({
+      ...prevState,
+      player: { ...prevState.player, movingLeft: false, movingRight: false },
+    })),
     trackMouse: true,
   });
 
