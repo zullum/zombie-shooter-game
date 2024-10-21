@@ -20,7 +20,7 @@ const PADDING_BOTTOM = 20; // Padding for the bottom area
 
 const CLICK_TIMEOUT = 1000; // 1 second cooldown for shooting direction
 
-const SWIPE_SPEED_MULTIPLIER = 0.5; // Reduced from 2 to 0.5 for more controlled movement
+const SWIPE_SPEED_MULTIPLIER = 0.2; // Reduced from 0.5 to 0.2
 
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -42,7 +42,8 @@ const Game: React.FC = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isShootingDirectionActive, setIsShootingDirectionActive] = useState(false);
   const [isTouching, setIsTouching] = useState(false);
-  const [touchStartX, setTouchStartX] = useState(0);
+  const [swipeStartX, setSwipeStartX] = useState(0);
+  const [isSwipingHorizontally, setIsSwipingHorizontally] = useState(false);
 
   const initAudio = useCallback(async () => {
     try {
@@ -346,31 +347,42 @@ const Game: React.FC = () => {
 
   const handleTouchStart = useCallback((event: React.TouchEvent) => {
     setIsTouching(true);
-    setTouchStartX(event.touches[0].clientX);
+    setSwipeStartX(event.touches[0].clientX);
+    setIsSwipingHorizontally(false);
   }, []);
 
   const handleTouchMove = useCallback((event: React.TouchEvent) => {
     if (isTouching) {
       const touchX = event.touches[0].clientX;
-      const deltaX = (touchX - touchStartX) * SWIPE_SPEED_MULTIPLIER;
-      setGameState(prevState => {
-        const newX = Math.max(0, Math.min(gameSize.width - prevState.player.width, prevState.player.x + deltaX));
-        return {
-          ...prevState,
-          player: {
-            ...prevState.player,
-            x: newX,
-            movingLeft: deltaX < 0,
-            movingRight: deltaX > 0,
-          },
-        };
-      });
-      setTouchStartX(touchX);
+      const deltaX = touchX - swipeStartX;
+
+      // Determine if it's a horizontal swipe
+      if (Math.abs(deltaX) > 10 && !isSwipingHorizontally) {
+        setIsSwipingHorizontally(true);
+      }
+
+      if (isSwipingHorizontally) {
+        const moveAmount = deltaX * SWIPE_SPEED_MULTIPLIER;
+        setGameState(prevState => {
+          const newX = Math.max(0, Math.min(gameSize.width - prevState.player.width, prevState.player.x + moveAmount));
+          return {
+            ...prevState,
+            player: {
+              ...prevState.player,
+              x: newX,
+              movingLeft: deltaX < 0,
+              movingRight: deltaX > 0,
+            },
+          };
+        });
+        setSwipeStartX(touchX);
+      }
     }
-  }, [isTouching, touchStartX, gameSize.width]);
+  }, [isTouching, swipeStartX, isSwipingHorizontally, gameSize.width]);
 
   const handleTouchEnd = useCallback(() => {
     setIsTouching(false);
+    setIsSwipingHorizontally(false);
     setGameState(prevState => ({
       ...prevState,
       player: {
@@ -382,48 +394,26 @@ const Game: React.FC = () => {
   }, []);
 
   const handleTap = useCallback((event: React.TouchEvent) => {
-    const container = containerRef.current;
-    if (container && gameState.gameStarted && !gameState.gameOver && !isPaused) {
-      const rect = container.getBoundingClientRect();
-      const scaleX = gameSize.width / rect.width;
-      const scaleY = gameSize.height / rect.height;
-      const x = (event.touches[0].clientX - rect.left) * scaleX;
-      const y = (event.touches[0].clientY - rect.top) * scaleY;
+    if (!isSwipingHorizontally && gameState.gameStarted && !gameState.gameOver && !isPaused) {
+      const container = containerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        const scaleX = gameSize.width / rect.width;
+        const scaleY = gameSize.height / rect.height;
+        const x = (event.touches[0].clientX - rect.left) * scaleX;
+        const y = (event.touches[0].clientY - rect.top) * scaleY;
 
-      setGameState(prevState => updateCanvasClick(prevState, x, y));
-      setIsShootingDirectionActive(true);
-      setTimeout(() => setIsShootingDirectionActive(false), CLICK_TIMEOUT);
+        setGameState(prevState => updateCanvasClick(prevState, x, y));
+        setIsShootingDirectionActive(true);
+        setTimeout(() => setIsShootingDirectionActive(false), CLICK_TIMEOUT);
+      }
     }
-  }, [gameState.gameStarted, gameState.gameOver, isPaused, gameSize]);
-
-  const swipeHandlers = useSwipeable({
-    onSwiping: (eventData) => {
-      const deltaX = eventData.deltaX * SWIPE_SPEED_MULTIPLIER;
-      setGameState(prevState => {
-        const newX = Math.max(0, Math.min(gameSize.width - prevState.player.width, prevState.player.x + deltaX));
-        return {
-          ...prevState,
-          player: {
-            ...prevState.player,
-            x: newX,
-            movingLeft: deltaX < 0,
-            movingRight: deltaX > 0,
-          },
-        };
-      });
-    },
-    onSwiped: () => setGameState(prevState => ({
-      ...prevState,
-      player: { ...prevState.player, movingLeft: false, movingRight: false },
-    })),
-    trackMouse: true,
-  });
+  }, [gameState.gameStarted, gameState.gameOver, isPaused, gameSize, isSwipingHorizontally]);
 
   return (
     <div 
       className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden"
       onClick={handleClick}
-      {...swipeHandlers}
     >
       <div 
         ref={containerRef} 
@@ -544,11 +534,11 @@ const Game: React.FC = () => {
           </div>
         )}
         
-        {/* Add this for mobile tapping */}
+        {/* Modify this part for mobile tapping */}
         {isMobile && gameState.gameStarted && !gameState.gameOver && !isPaused && (
           <div 
             className="absolute top-0 left-0 w-full h-full z-20"
-            onTouchStart={handleTap}
+            onTouchEnd={handleTap}
           />
         )}
       </div>
