@@ -119,7 +119,7 @@ const INITIAL_BOSS_HEALTH = 15;
 const BOSS_HEALTH_INCREMENT = 3;
 const INITIAL_BOSS_SCALE = 2;
 const BOSS_SCALE_INCREMENT = 0.2;
-const BOSS_HEALTH_MULTIPLIER = 7; // Increase from 5 to 7 for more strength
+const BOSS_HEALTH_MULTIPLIER = 8; // Increase from 5 to 7 for more strength
 const BOSS_DAMAGE_MULTIPLIER = 6; // Increase from 5 to 6
 const ZOMBIE_ATTACK_COOLDOWN = 1000; // 1 second cooldown for regular zombies
 const BOSS_ATTACK_COOLDOWN = 1000; // 1 second cooldown for boss zombies
@@ -154,7 +154,7 @@ const MAX_NEGATIVE_RANGE_START = -100;
 const MAX_NEGATIVE_RANGE_END = -80;
 
 // Add this constant at the top of the file
-const BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE = 200; // Base cooldown for positive blocks in milliseconds
+const BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE = 300; // Base cooldown for positive blocks in milliseconds
 const MATH_BLOCK_COOLDOWN_INCREMENT = 0.01; // 1% increase per wave
 
 let audioContext: AudioContext | null = null;
