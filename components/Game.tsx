@@ -7,6 +7,7 @@ import { drawGame } from '../utils/drawGame';
 import { useGameLoop } from '../hooks/useGameLoop';
 import Crosshair from './crosshair/crosshair';
 import styles from './Game.module.css'; // If you're using CSS modules
+import { useSwipeable } from 'react-swipeable'; // You'll need to install this package
 
 const AUDIO_INIT_TIMEOUT = 30000; // Increased to 30 seconds
 const AUDIO_INIT_RETRY_INTERVAL = 5000; // Retry every 5 seconds
@@ -39,6 +40,8 @@ const Game: React.FC = () => {
   const [isPulsing, setIsPulsing] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isShootingDirectionActive, setIsShootingDirectionActive] = useState(false);
+  const [isTouching, setIsTouching] = useState(false);
+  const [touchStartX, setTouchStartX] = useState(0);
 
   const initAudio = useCallback(async () => {
     try {
@@ -340,11 +343,75 @@ const Game: React.FC = () => {
     }
   }, [gameState.gameStarted, gameState.gameOver]);
 
+  const handleTouchStart = useCallback((event: React.TouchEvent) => {
+    setIsTouching(true);
+    setTouchStartX(event.touches[0].clientX);
+  }, []);
+
+  const handleTouchMove = useCallback((event: React.TouchEvent) => {
+    if (isTouching) {
+      const touchX = event.touches[0].clientX;
+      const deltaX = touchX - touchStartX;
+      setGameState(prevState => ({
+        ...prevState,
+        player: {
+          ...prevState.player,
+          movingLeft: deltaX < 0,
+          movingRight: deltaX > 0,
+        },
+      }));
+      setTouchStartX(touchX);
+    }
+  }, [isTouching, touchStartX]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsTouching(false);
+    setGameState(prevState => ({
+      ...prevState,
+      player: {
+        ...prevState.player,
+        movingLeft: false,
+        movingRight: false,
+      },
+    }));
+  }, []);
+
+  const handleTap = useCallback((event: React.TouchEvent) => {
+    const container = containerRef.current;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const scaleX = gameSize.width / rect.width;
+      const scaleY = gameSize.height / rect.height;
+      const x = (event.touches[0].clientX - rect.left) * scaleX;
+      const y = (event.touches[0].clientY - rect.top) * scaleY;
+
+      if (gameState.gameStarted && !gameState.gameOver && !isPaused) {
+        setGameState(prevState => updateCanvasClick(prevState, x, y));
+        setIsShootingDirectionActive(true);
+        setTimeout(() => setIsShootingDirectionActive(false), CLICK_TIMEOUT);
+      }
+    }
+  }, [gameState.gameStarted, gameState.gameOver, isPaused, gameSize]);
+
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: true, movingRight: false } })),
+    onSwipedRight: () => setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: false, movingRight: true } })),
+    onSwiping: (eventData) => {
+      if (eventData.dir === 'Left') {
+        setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: true, movingRight: false } }));
+      } else if (eventData.dir === 'Right') {
+        setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: false, movingRight: true } }));
+      }
+    },
+    onSwiped: () => setGameState(prevState => ({ ...prevState, player: { ...prevState.player, movingLeft: false, movingRight: false } })),
+    trackMouse: true,
+  });
 
   return (
     <div 
       className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden"
-      onClick={handleClick} // Add this line to handle clicks on the entire game area
+      onClick={handleClick}
+      {...swipeHandlers}
     >
       <div 
         ref={containerRef} 
@@ -354,9 +421,13 @@ const Game: React.FC = () => {
           height: `${containerSize.height}px`,
           maxWidth: '100vw',
           maxHeight: '100vh',
-          cursor: 'none', // Hide the default cursor
+          cursor: 'none',
         }}
         onMouseMove={handleMouseMove}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
         {/* Background video */}
         {(!gameState.gameStarted || gameState.gameOver) && (
@@ -459,6 +530,14 @@ const Game: React.FC = () => {
               </button>
             </div>
           </div>
+        )}
+        
+        {/* Add this for mobile tapping */}
+        {isMobile && gameState.gameStarted && !gameState.gameOver && !isPaused && (
+          <div 
+            className="absolute top-0 left-0 w-full h-full z-20"
+            onTouchStart={handleTap}
+          />
         )}
       </div>
     </div>
