@@ -38,6 +38,7 @@ const Game: React.FC = () => {
   const [isTouching, setIsTouching] = useState(false);
   const [swipeStartX, setSwipeStartX] = useState(0);
   const [isSwipingHorizontally, setIsSwipingHorizontally] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState('100vh');
 
   const initAudio = useCallback(async () => {
     try {
@@ -429,9 +430,26 @@ const Game: React.FC = () => {
     }
   }, [gameState.gameStarted, gameState.gameOver, isPaused, gameSize, isSwipingHorizontally]);
 
+  const updateViewportHeight = useCallback(() => {
+    const vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+    setViewportHeight(`${window.innerHeight}px`);
+  }, []);
+
+  useEffect(() => {
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+    };
+  }, [updateViewportHeight]);
+
   return (
     <div 
-      className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden"
+      className="flex items-center justify-center bg-gray-800 overflow-hidden"
       onClick={handleClick}
       style={{ 
         position: 'fixed', 
@@ -439,17 +457,19 @@ const Game: React.FC = () => {
         left: 0, 
         right: 0, 
         bottom: 0,
-        touchAction: 'none' // Prevent default touch actions
+        width: '100vw',
+        height: viewportHeight,
+        touchAction: 'none'
       }}
     >
       <div 
         ref={containerRef} 
         className={`relative ${styles.gameContainer}`}
         style={{
-          width: `${containerSize.width}px`,
-          height: `${containerSize.height}px`,
+          width: '100%',
+          height: '100%',
           maxWidth: '100vw',
-          maxHeight: '100vh',
+          maxHeight: viewportHeight,
           cursor: 'none',
         }}
         onMouseMove={handleMouseMove}
