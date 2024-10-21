@@ -1,3 +1,20 @@
 {
-  "extends": "next/core-web-vitals"
+	"parser": "@typescript-eslint/parser",
+	"extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "plugin:prettier/recommended"],
+	"plugins": ["@typescript-eslint", "prettier"],
+	"rules": {
+		"prettier/prettier": "error",
+		"max-len": ["error", { "code": 80 }],
+		"object-property-newline": ["error", { "allowAllPropertiesOnSameLine": false }],
+		"array-element-newline": ["error", { "multiline": true, "minItems": 1 }],
+		"object-curly-newline": [
+			"error",
+			{
+				"ObjectExpression": { "multiline": true, "minProperties": 1 },
+				"ImportDeclaration": { "multiline": true, "minProperties": 1 },
+				"ExportDeclaration": { "multiline": true, "minProperties": 1 }
+			}
+		],
+		"one-var": ["error", "never"]
+	}
 }

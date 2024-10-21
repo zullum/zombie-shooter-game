@@ -1,8 +1,10 @@
-export const PLAYER_SPACING = 40; // Define player spacing
+import { INITIAL_WAVE_INTERVAL } from "@/constants";
 
-// Add this constant
-export const INITIAL_WAVE_INTERVAL = 20000; // 20 seconds between waves initially
-
+interface SoundState {
+  singleLaserSound: Howl | null;
+  multipleLaserSound: Howl | null;
+  isLaserPlaying: boolean;
+}
 export interface Player {
   x: number;
   y: number;
@@ -18,6 +20,10 @@ export interface Player {
   currentFrame: number;
   animationState: 'idle' | 'running' | 'shooting';
   lastAnimationUpdate: number;
+  soundState: SoundState;
+  isMultipleLaserPlaying: boolean;
+  waveInterval: number;
+  lastWaveTime: number;
 }
 
 export interface Zombie {
@@ -29,6 +35,8 @@ export interface Zombie {
   currentFrame: number;
   lastAnimationUpdate: number;
   scale: number; // Add this new property
+  lastAttackTime: number;
+  health: number; // Add this line
 }
 
 export interface Bullet {
@@ -45,12 +53,7 @@ export interface Bullet {
 }
 
 export interface MathBlock {
-  operation: string;
-  value: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  
 }
 
 export interface GameState {
@@ -65,7 +68,7 @@ export interface GameState {
   playerCount: number;
   lastPuzzleTime: number;
   currentPuzzle: MathPuzzle | null;
-  mathBlocks: MathBlock[] | null; // Change this from [MathBlock, MathBlock] to MathBlock[]
+  mathBlocks: MathBlock[] | null;
   lastMathBlockSpawn: number;
   playerFormation: Player[];
   setGameState?: React.Dispatch<React.SetStateAction<GameState>>;
@@ -78,7 +81,18 @@ export interface GameState {
   gameSize: GameSize;
   isMultipleLaserPlaying: boolean;
   isPaused: boolean;
+  soundState: SoundState;
 }
+
+export interface Vector2D {
+  x: number;
+  y: number;
+}
+
+export type GameStateWithClick = GameState & {
+  lastClickPosition: Vector2D | null;
+  lastClickTime: number;
+};
 
 export interface MathPuzzle {
   question: string;
@@ -98,6 +112,7 @@ export interface GameSize {
   height: number;
 }
 
+
 export const initialGameState: GameState = {
   player: {
     x: 270, // Half of the new width
@@ -114,6 +129,14 @@ export const initialGameState: GameState = {
     currentFrame: 0,
     animationState: 'idle',
     lastAnimationUpdate: 0,
+    soundState: {
+      singleLaserSound: null,
+      multipleLaserSound: null,
+      isLaserPlaying: false,
+    },
+    isMultipleLaserPlaying: false,
+    waveInterval: INITIAL_WAVE_INTERVAL,
+    lastWaveTime: Date.now(),
   },
   zombies: [],
   bullets: [],
@@ -135,10 +158,22 @@ export const initialGameState: GameState = {
   gameSize: { width: 540, height: 960 }, // Default size, will be updated in the Game component
   isMultipleLaserPlaying: false,
   isPaused: false,
+  soundState: {
+    singleLaserSound: null,
+    multipleLaserSound: null,
+    isLaserPlaying: false,
+  },
 };
 
-const PADDING = 0.2; // 20% padding
-
-
-
-
+export interface MathBlock {
+  operation: string;
+  value: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  lastHitTime: number;
+  positiveIncrements: number;
+  positiveUpdateCount: number;
+  lastPositiveUpdateTime: number;
+}

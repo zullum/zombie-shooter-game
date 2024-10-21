@@ -113,9 +113,8 @@ const Game: React.FC = () => {
   // Add this new effect to handle shooting sounds
   useEffect(() => {
     if (isPaused) {
-      // Pause all active shooting sounds
       const shootingSounds = document.querySelectorAll('audio[data-sound="shooting"]');
-      shootingSounds.forEach((sound: HTMLAudioElement) => sound.pause());
+      shootingSounds.forEach((sound) => (sound as HTMLAudioElement).pause());
     }
   }, [isPaused]);
 
@@ -144,22 +143,13 @@ const Game: React.FC = () => {
     }
     // Resume all paused shooting sounds
     const shootingSounds = document.querySelectorAll('audio[data-sound="shooting"]');
-    shootingSounds.forEach((sound: HTMLAudioElement) => {
-      if (sound.paused) {
-        sound.play().catch(error => console.error("Error resuming shooting sound:", error));
+    shootingSounds.forEach((sound) => {
+      if ((sound as HTMLAudioElement).paused) {
+        (sound as HTMLAudioElement).play().catch(error => console.error("Error resuming shooting sound:", error));
       }
     });
   }, [backgroundMusic]);
 
-  const pauseGame = useCallback(() => {
-    setIsPaused(true);
-    if (backgroundMusic) {
-      backgroundMusic.pause();
-    }
-    // Pause all active shooting sounds
-    const shootingSounds = document.querySelectorAll('audio[data-sound="shooting"]');
-    shootingSounds.forEach((sound: HTMLAudioElement) => sound.pause());
-  }, [backgroundMusic]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
