@@ -38,7 +38,6 @@ const Game: React.FC = () => {
   const [isTouching, setIsTouching] = useState(false);
   const [swipeStartX, setSwipeStartX] = useState(0);
   const [isSwipingHorizontally, setIsSwipingHorizontally] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState('100vh');
 
   const initAudio = useCallback(async () => {
     try {
@@ -306,8 +305,21 @@ const Game: React.FC = () => {
     setIsMobile(isMobileDevice);
 
     if (isMobileDevice) {
-      setGameSize({ width: window.innerWidth, height: window.innerHeight });
-      setContainerSize({ width: window.innerWidth, height: window.innerHeight });
+      // Use visual viewport for more accurate measurements on mobile
+      const visibleWidth = window.visualViewport?.width || window.innerWidth;
+      const visibleHeight = window.visualViewport?.height || window.innerHeight;
+
+      // Adjust for iOS Safari's bottom bar
+      const bottomBarHeight = window.innerHeight - visibleHeight;
+
+      setGameSize({ 
+        width: visibleWidth, 
+        height: visibleHeight - bottomBarHeight
+      });
+      setContainerSize({ 
+        width: visibleWidth, 
+        height: visibleHeight - bottomBarHeight
+      });
     } else {
       const aspectRatio = DESKTOP_WIDTH / DESKTOP_HEIGHT;
       const maxHeight = window.innerHeight;
@@ -342,10 +354,18 @@ const Game: React.FC = () => {
     };
     checkHeight();
 
+    // Add event listener for visual viewport resize
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+    }
+
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
       document.removeEventListener('fullscreenchange', handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleResize);
+      }
     };
   }, [updateGameSize]);
 
@@ -416,12 +436,12 @@ const Game: React.FC = () => {
   const handleTap = useCallback((event: React.TouchEvent) => {
     if (!isSwipingHorizontally && gameState.gameStarted && !gameState.gameOver && !isPaused) {
       const container = containerRef.current;
-      if (container) {
+      if (container && event.changedTouches.length > 0) {
         const rect = container.getBoundingClientRect();
         const scaleX = gameSize.width / rect.width;
         const scaleY = gameSize.height / rect.height;
-        const x = (event.touches[0].clientX - rect.left) * scaleX;
-        const y = (event.touches[0].clientY - rect.top) * scaleY;
+        const x = (event.changedTouches[0].clientX - rect.left) * scaleX;
+        const y = (event.changedTouches[0].clientY - rect.top) * scaleY;
 
         setGameState(prevState => updateCanvasClick(prevState, x, y));
         setIsShootingDirectionActive(true);
@@ -430,26 +450,9 @@ const Game: React.FC = () => {
     }
   }, [gameState.gameStarted, gameState.gameOver, isPaused, gameSize, isSwipingHorizontally]);
 
-  const updateViewportHeight = useCallback(() => {
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
-    setViewportHeight(`${window.innerHeight}px`);
-  }, []);
-
-  useEffect(() => {
-    updateViewportHeight();
-    window.addEventListener('resize', updateViewportHeight);
-    window.addEventListener('orientationchange', updateViewportHeight);
-
-    return () => {
-      window.removeEventListener('resize', updateViewportHeight);
-      window.removeEventListener('orientationchange', updateViewportHeight);
-    };
-  }, [updateViewportHeight]);
-
   return (
     <div 
-      className="flex items-center justify-center bg-gray-800 overflow-hidden"
+      className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden"
       onClick={handleClick}
       style={{ 
         position: 'fixed', 
@@ -457,19 +460,19 @@ const Game: React.FC = () => {
         left: 0, 
         right: 0, 
         bottom: 0,
-        width: '100vw',
-        height: viewportHeight,
-        touchAction: 'none'
+        width: '100%',
+        height: '100%',
+        touchAction: 'none' // Prevent default touch actions
       }}
     >
       <div 
         ref={containerRef} 
         className={`relative ${styles.gameContainer}`}
         style={{
-          width: '100%',
-          height: '100%',
-          maxWidth: '100vw',
-          maxHeight: viewportHeight,
+          width: `${containerSize.width}px`,
+          height: `${containerSize.height}px`,
+          maxWidth: '100%',
+          maxHeight: '100%',
           cursor: 'none',
         }}
         onMouseMove={handleMouseMove}
