@@ -38,6 +38,7 @@ const Game: React.FC = () => {
   const [isTouching, setIsTouching] = useState(false);
   const [swipeStartX, setSwipeStartX] = useState(0);
   const [isSwipingHorizontally, setIsSwipingHorizontally] = useState(false);
+  const [lastBackPress, setLastBackPress] = useState(0);
 
   const initAudio = useCallback(async () => {
     try {
@@ -449,6 +450,54 @@ const Game: React.FC = () => {
       }
     }
   }, [gameState.gameStarted, gameState.gameOver, isPaused, gameSize, isSwipingHorizontally]);
+
+  useEffect(() => {
+    let backPressCount = 0;
+    let backPressTimer: NodeJS.Timeout;
+
+    const handleBackButton = (event: PopStateEvent) => {
+      event.preventDefault();
+      const currentTime = new Date().getTime();
+
+      if (currentTime - lastBackPress < 300) {
+        // Double press detected
+        backPressCount = 0;
+        if (gameState.gameStarted && !gameState.gameOver) {
+          // Exit the game or return to top
+          setGameState(initialGameState);
+        }
+      } else {
+        // Single press
+        backPressCount++;
+        if (backPressCount === 1) {
+          if (gameState.gameStarted && !gameState.gameOver) {
+            // Pause or unpause the game
+            setIsPaused(prev => !prev);
+          }
+          backPressTimer = setTimeout(() => {
+            backPressCount = 0;
+          }, 300);
+        }
+      }
+
+      setLastBackPress(currentTime);
+      history.pushState(null, '', window.location.pathname);
+    };
+
+    if (isMobile) {
+      window.addEventListener('popstate', handleBackButton);
+      history.pushState(null, '', window.location.pathname);
+    }
+
+    return () => {
+      if (isMobile) {
+        window.removeEventListener('popstate', handleBackButton);
+        if (backPressTimer) {
+          clearTimeout(backPressTimer);
+        }
+      }
+    };
+  }, [isMobile, gameState.gameStarted, gameState.gameOver, lastBackPress]);
 
   return (
     <div 
