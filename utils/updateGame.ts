@@ -93,11 +93,9 @@ interface BossZombie extends Zombie {
 const MAX_MATH_BLOCKS = 3; // Maximum number of math blocks on screen at once
 
 const PADDING = 0.05; // 5% padding on each side
-const MATH_BLOCK_GAP = 0.2; // 20% gap between blocks
 const SHOOT_COOLDOWN = 700; // Increase cooldown to 700ms for even less frequent shooting
 const INITIAL_ZOMBIES_PER_WAVE = 5; // Reduced from 3
 const ZOMBIES_PER_WAVE_INCREMENT = 1.5; // Reduced from 1
-const MATH_BLOCK_INTERVAL = 10000;
 const PLAYER_GAP = 3; // Increased from 2 to create a small visible gap
 const PLAYER_WIDTH = 15;
 const PLAYER_HEIGHT = 15;
@@ -113,7 +111,7 @@ const CLICK_TIMEOUT = 1000; // Reduced from 5000 to 1000 milliseconds (1 second)
 const ZOMBIE_MIN_SCALE = 1;
 const ZOMBIE_MAX_SCALE = 3; // Changed from 1.5 to 3
 const BASE_ZOMBIE_SPEED = 0.8; // Adjust this value as needed
-const SPEED_INCREMENT_PER_WAVE = 0.05; // Adjust this value as needed
+const SPEED_INCREMENT_PER_WAVE = 0.03; // Adjust this value as needed
 const ANIMATION_FRAME_DURATION = 100; // milliseconds per frame
 const TOTAL_FRAMES = 15; // Assuming 15 frames for player animation
 const SHOOT_CHANCE_PER_PLAYER = 0.03; // Decrease chance to shoot to 3% per frame
@@ -134,11 +132,12 @@ const WAVE_DURATION = 10000; // 10 seconds per wave
 const INITIAL_MATH_BLOCK_VALUE_MIN = -5;
 const INITIAL_MATH_BLOCK_VALUE_MAX = -3;
 const MATH_BLOCK_VALUE_WAVE_MULTIPLIER = 1.15; // This will be used to scale the values for subsequent waves
-const MATH_BLOCK_SPEED = 1.2; // Adjust this value as needed for the desired speed
+const MATH_BLOCK_SPEED = 1.2; // Base speed
+const MATH_BLOCK_SPEED_INCREMENT = 0.01; // 1% increase per wave
 const MAX_SINGLE_SOUND_PLAYERS = 6;
 const LASER_SINGLE_SOUND = '/audio/laser_single.mp3';
 const LASER_MULTIPLE_SOUND = '/audio/laser_multiple.mp3';
-const MAX_ZOMBIES_PER_WAVE = 50; // Maximum number of zombies per wave
+const MAX_ZOMBIES_PER_WAVE = 300; // Maximum number of zombies per wave
 const PADDING_TOP = 40;
 const BOTTOM_PADDING = 40; // Add this constant if not already present
 const MATH_BLOCK_HIT_COOLDOWN_NEGATIVE = 30; // ms for negative values
@@ -156,6 +155,7 @@ const MAX_NEGATIVE_RANGE_END = -80;
 
 // Add this constant at the top of the file
 const BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE = 200; // Base cooldown for positive blocks in milliseconds
+const MATH_BLOCK_COOLDOWN_INCREMENT = 0.01; // 1% increase per wave
 
 let audioContext: AudioContext | null = null;
 let bulletSoundBuffer: AudioBuffer | null = null;
@@ -575,8 +575,14 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
 
   // Handle math block movement, collisions, and bullet hits
   if (newState.mathBlocks) {
+    const currentWaveSpeedMultiplier = 1 + (MATH_BLOCK_SPEED_INCREMENT * (newState.wave - 1));
+    const currentMathBlockSpeed = MATH_BLOCK_SPEED * currentWaveSpeedMultiplier;
+
+    // Calculate the current cooldown for positive math blocks
+    const currentPositiveCooldown = BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE * (1 + MATH_BLOCK_COOLDOWN_INCREMENT * (newState.wave - 1));
+
     newState.mathBlocks = newState.mathBlocks.map(block => {
-      block.y += MATH_BLOCK_SPEED;
+      block.y += currentMathBlockSpeed;
 
       // Check for collision with any player in the formation
       for (let player of newState.playerFormation) {
@@ -597,9 +603,8 @@ const updateGame = (state: GameState, audioContext: AudioContext | null, bulletS
       newState.mathBlocks = newState.mathBlocks!.map(block => {
         if (!bulletHit && checkBulletMathBlockCollision(bullet, block)) {
           bulletHit = true;
-          const currentTime = Date.now();
           const cooldown = block.value >= 0 
-            ? BASE_MATH_BLOCK_HIT_COOLDOWN_POSITIVE * Math.pow(2, block.positiveIncrements)
+            ? currentPositiveCooldown * Math.pow(2, block.positiveIncrements)
             : MATH_BLOCK_HIT_COOLDOWN_NEGATIVE;
           
           if (currentTime - block.lastHitTime > cooldown) {
