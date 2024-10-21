@@ -11,15 +11,9 @@ import { useSwipeable } from 'react-swipeable'; // You'll need to install this p
 
 const AUDIO_INIT_TIMEOUT = 30000; // Increased to 30 seconds
 const AUDIO_INIT_RETRY_INTERVAL = 5000; // Retry every 5 seconds
-
-// Update these constants
 const DESKTOP_WIDTH = 540;
 const DESKTOP_HEIGHT = 900; // Reduced from 960 to allow for some padding
-const PADDING_TOP = 40; // Padding for the top area
-const PADDING_BOTTOM = 20; // Padding for the bottom area
-
 const CLICK_TIMEOUT = 1000; // 1 second cooldown for shooting direction
-
 const SWIPE_SPEED_MULTIPLIER = 0.2; // Reduced from 0.5 to 0.2
 
 const Game: React.FC = () => {
@@ -306,28 +300,53 @@ const Game: React.FC = () => {
     }
   }, [audioContext, audioInitialized, initAudio]);
 
-  useEffect(() => {
-    const handleResize = () => {
-      const isMobileDevice = window.innerWidth <= 768;
-      setIsMobile(isMobileDevice);
+  const updateGameSize = useCallback(() => {
+    const isMobileDevice = window.innerWidth <= 768;
+    setIsMobile(isMobileDevice);
 
-      if (isMobileDevice) {
-        setGameSize({ width: window.innerWidth, height: window.innerHeight });
-        setContainerSize({ width: window.innerWidth, height: window.innerHeight });
-      } else {
-        const aspectRatio = DESKTOP_WIDTH / DESKTOP_HEIGHT;
-        const maxHeight = window.innerHeight;
-        const width = Math.min(DESKTOP_WIDTH, maxHeight * aspectRatio);
-        const height = width / aspectRatio;
-        setGameSize({ width, height });
-        setContainerSize({ width, height });
-      }
+    if (isMobileDevice) {
+      setGameSize({ width: window.innerWidth, height: window.innerHeight });
+      setContainerSize({ width: window.innerWidth, height: window.innerHeight });
+    } else {
+      const aspectRatio = DESKTOP_WIDTH / DESKTOP_HEIGHT;
+      const maxHeight = window.innerHeight;
+      const width = Math.min(DESKTOP_WIDTH, maxHeight * aspectRatio);
+      const height = width / aspectRatio;
+      setGameSize({ width, height });
+      setContainerSize({ width, height });
+    }
+  }, []);
+
+  useEffect(() => {
+    updateGameSize();
+
+    const handleResize = () => {
+      updateGameSize();
     };
 
-    handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    window.addEventListener('orientationchange', handleResize);
+
+    // Add event listener for fullscreenchange
+    document.addEventListener('fullscreenchange', handleResize);
+
+    // Use requestAnimationFrame to check for height changes
+    let lastHeight = window.innerHeight;
+    const checkHeight = () => {
+      if (window.innerHeight !== lastHeight) {
+        lastHeight = window.innerHeight;
+        updateGameSize();
+      }
+      requestAnimationFrame(checkHeight);
+    };
+    checkHeight();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+      document.removeEventListener('fullscreenchange', handleResize);
+    };
+  }, [updateGameSize]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -414,6 +433,14 @@ const Game: React.FC = () => {
     <div 
       className="w-screen h-screen flex items-center justify-center bg-gray-800 overflow-hidden"
       onClick={handleClick}
+      style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0,
+        touchAction: 'none' // Prevent default touch actions
+      }}
     >
       <div 
         ref={containerRef} 
